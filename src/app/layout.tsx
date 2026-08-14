@@ -17,7 +17,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "面试手记 · Interview Forge",
-  description: "前端面试题库与标签管理",
+  description: "前端面试题库与标签管理 · 全栈 Next.js + Prisma + AI 出题",
+  openGraph: {
+    title: "面试手记 · Interview Forge",
+    description: "前端面试题库与标签管理 · 全栈 Next.js + Prisma + AI 出题",
+    type: "website",
+    locale: "zh_CN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "面试手记 · Interview Forge",
+    description: "前端面试题库与标签管理 · 全栈 Next.js + Prisma + AI 出题",
+  },
 };
 
 export default function RootLayout({
