@@ -1,0 +1,14 @@
+"use client";
+// 答案正文渲染组件：把数据库里存的 Markdown 字符串渲染成带层级/列表/代码块的富文本。
+// 用「客户端组件」包一层 react-markdown，避免 RSC 边界问题；详情页（Server Component）
+// 只把 content 字符串当 prop 传进来即可。
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+export default function MarkdownView({ content }: { content: string }) {
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  );
+}

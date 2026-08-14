@@ -1,0 +1,363 @@
+# Interview Forge（面试锻造）
+
+**一个全栈面试题库管理平台——从题库 CRUD（增删改查）到 AI 智能出题，打通 Next.js + Prisma + PostgreSQL 全链路。**
+
+![CI](https://github.com/ForceNiu/interview-forge/actions/workflows/ci.yml/badge.svg?branch=main)
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
+
+![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma)
+
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql)
+
+![Tailwind](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss)
+
+![License](https://img.shields.io/badge/License-MIT-gold)
+
+---
+
+## 一、这是什么
+
+面试准备最怕两件事：题库散落在各处找不到，以及不知道面试官会针对自己的简历问什么。
+
+Interview Forge（面试锻造）解决这两个问题：
+
+- **统一收纳**：把你收集的面试题、自己踩过的坑、AI（人工智能）生成的针对性题目，全部存进一个可搜索、可打标签、可收藏的题库里。
+- **AI 智能出题**：输入你的简历和目标岗位 JD（Job Description，职位描述），系统自动分析你的技术栈和盲区，生成针对你个人的面试题目——不是泛泛的"请说说闭包"，而是结合你简历里的具体技术点，追问它的设计考量、底层原理与真实踩坑场景。
+
+技术定位：这是一个**资深前端工程师的全栈实践项目**，用 Next.js App Router（应用路由）打通前后端全链路，AI 部分用 LangGraph.js（LangGraph 编排框架）编排工作流而非简单调 API（应用程序接口）。
+
+---
+
+## 二、功能一览
+
+| 功能       | 说明                                                                                                                    |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| 📝 题库管理  | 新增、编辑、删除题目，Zod（类型校验库）服务端校验，标签多对多关联                                                                                    |
+| 🏷️ 标签系统 | 独立标签管理页，题目与标签通过中间表多对多关联                                                                                               |
+| ⭐ 收藏     | TanStack Query（查询库）驱动，乐观更新（optimistic update），切换收藏即时响应                                                                |
+| 🔍 搜索    | 后端连库模糊搜索（标题 + 正文），300ms 防抖（debounce），竞态守卫（race condition guard）防错乱                                                    |
+| 🤖 AI 出题 | 输入简历 + JD（职位描述），LangGraph.js（LangGraph 编排框架）编排 5 节点工作流，DeepSeek（深度求索大模型）生成针对性题目，SSE（Server-Sent Events，服务端推送事件）流式推送进度 |
+| 🌓 深色模式  | CSS 变量全站换肤，防闪白 FOUC（Flash of Unstyled Content），localStorage（浏览器本地存储）持久化                                               |
+
+### 页面讲解（路由 → 作用）
+
+| 路由                      | 页面 / 作用                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `/`                     | 首页：Server Component（服务端组件）SSR（服务端渲染）查库渲染题目列表，顶部搜索框触发后端连库模糊搜索           |
+| `/questions/new`        | 新增题目：Zod 校验表单，Server Action（服务端动作）写库                                              |
+| `/questions/[id]`       | 题目详情：Markdown 渲染答案（react-markdown + remark-gfm），含编辑/删除/收藏操作                      |
+| `/questions/[id]/edit`  | 编辑题目：与新增共用 `QuestionForm`，回填已有数据                                                |
+| `/favorites`            | 收藏页：TanStack Query 拉取收藏列表，乐观更新切换收藏状态                                                |
+| `/tags`                 | 标签管理：标签增删 + 颜色，题目与标签多对多关联                                                |
+| `/ai-generate`          | AI 出题：输入简历 + JD，SSE 流式消费 5 节点工作流进度，实时展示生成题目并一键保存                          |
+| `/unlock`               | 密码门：仅当设置 `SITE_PASSWORD` 时才启用，输入密码后放开全站访问（默认留空 = 全开放）                          |
+
+---
+
+## 三、快速开始
+
+### 前置要求
+
+- Node.js 18+
+- PostgreSQL（关系型数据库，推荐 [Neon](https://neon.tech) 免费套餐）
+- DeepSeek API Key（DeepSeek 大模型密钥，[获取地址](https://platform.deepseek.com/api_keys)），可选——不用 AI 出题功能的话可以不填
+
+### 本地运行
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/ForceNiu/interview-forge.git
+cd interview-forge
+
+# 2. 安装依赖（自动执行 prisma generate）
+npm install
+
+# 3. 准备环境变量：复制示例并填入真实值
+cp .env.example .env
+#   编辑 .env，至少填 DATABASE_URL / DEEPSEEK_API_KEY / API_KEY_ENCRYPTION_SECRET
+#   详见 .env.example 中的注释说明
+
+# 4. 初始化数据库（建表，prisma 无 migrations 目录，用 db push）
+npx prisma db push
+
+# 5. 启动开发服务器
+npm run dev
+```
+
+打开 <http://localhost:3000>，开始使用。
+
+> **提示**：如不需要 AI 出题功能，跳过 `DEEPSEEK_API_KEY` 和 `API_KEY_ENCRYPTION_SECRET` 即可，其余功能照常使用。
+
+### 种子数据（seed data）
+
+```bash
+# 导入 10 道示例前端面试题（可选）
+node scripts/seed.cjs
+```
+
+---
+
+## 四、技术栈
+
+| 层                      | 技术                                          |
+| ---------------------- | ------------------------------------------- |
+| 框架（framework）          | Next.js 16 (App Router，应用路由)                |
+| 语言（language）           | TypeScript (strict，严格模式)                    |
+| ORM（对象关系映射）            | Prisma 6                                    |
+| 数据库（database）          | PostgreSQL (Neon 云托管)                       |
+| 样式（styling）            | Tailwind CSS v4                             |
+| 状态管理（state management） | TanStack Query（服务端状态） + useState（客户端状态）     |
+| 表单（form）               | useActionState + Server Actions（服务端动作）      |
+| 校验（validation）         | Zod（服务端校验库）                                 |
+| AI 编排（orchestration）   | LangGraph.js                                |
+| AI 模型（model）           | DeepSeek (deepseek-v4-flash)                |
+| 流式输出（streaming）        | SSE（Server-Sent Events，服务端推送事件）             |
+| 测试（testing）            | Jest + React Testing Library（RTL，React 测试库） |
+| CI/CD（持续集成/持续部署）       | GitHub Actions → Vercel                     |
+| 部署（deployment）         | Vercel                                      |
+
+---
+
+## 五、项目结构
+
+```
+src/
+├── app/                      # Next.js App Router（应用路由）页面与路由
+│   ├── page.tsx              # 首页（Server Component，服务端组件，SSR 查库渲染）
+│   ├── layout.tsx            # 根布局（QueryProvider 全局查询管理器 + 防闪白脚本）
+│   ├── SearchableQuestions.tsx  # 搜索 + 题目列表（Client Component，客户端组件）
+│   ├── questions/
+│   │   ├── new/page.tsx      # 新增题目页
+│   │   └── [id]/
+│   │       ├── page.tsx      # 题目详情页（Markdown 渲染）
+│   │       └── edit/page.tsx # 编辑题目页
+│   ├── favorites/page.tsx    # 收藏页（TanStack Query）
+│   ├── tags/page.tsx         # 标签管理页
+│   ├── ai-generate/page.tsx  # AI 出题页（SSE 流式消费）
+│   ├── unlock/page.tsx       # 密码门页（SITE_PASSWORD 启用时）
+│   └── api/
+│       ├── ai/
+│       │   ├── generate/route.ts    # AI 出题主接口（SSE 流式）
+│       │   ├── save-questions/route.ts  # 保存 AI 生成的题目
+│       │   ├── setup-key/route.ts   # 加密存储用户 API Key
+│       │   └── test/route.ts        # API Key 连通性测试
+│       └── questions/
+│           ├── route.ts             # 查收藏列表
+│           └── [id]/favorite/route.ts  # 切换收藏状态
+├── actions/
+│   ├── questions.ts           # 题库 Server Actions（CRUD + 搜索）
+│   ├── tags.ts               # 标签 Server Actions
+│   └── unlock.ts             # 密码门 Server Action
+├── components/
+│   ├── QuestionForm.tsx       # 新增/编辑共用表单
+│   ├── FavoriteButton.tsx     # 收藏按钮（乐观更新）
+│   ├── DeleteButton.tsx       # 删除按钮（二次确认 + 淡出动画）
+│   ├── QueryProvider.tsx      # TanStack Query 全局 Provider（管理器）
+│   ├── ThemeToggle.tsx        # 深色模式切换
+│   ├── NavBar.tsx             # 导航栏
+│   ├── MarkdownView.tsx       # Markdown 渲染（react-markdown + remark-gfm）
+│   └── ui/                    # 手搓 shadcn/ui 基础组件（button/card/input/...）
+├── lib/
+│   ├── prisma.ts              # Prisma 单例（singleton，globalThis 缓存防连接耗尽）
+│   ├── validator.ts           # Zod schema（校验规则定义） + 语义校验函数
+│   ├── useDebounce.ts         # 防抖 hook（useDebounce）
+│   ├── crypto.ts              # AES-256-GCM 加解密
+│   └── ai/
+│       ├── workflow.ts        # LangGraph 5 节点工作流定义
+│       ├── client.ts          # DeepSeek LLM（大模型）客户端
+│       ├── logger.ts          # L1/L2 日志
+│       └── recordRun.ts       # L4 运行记录写库
+├── __tests__/                 # Jest 测试
+│   ├── QuestionForm.test.tsx
+│   ├── QuestionList.test.tsx
+│   └── ai/workflow.test.tsx
+prisma/
+├── schema.prisma              # 6 张表定义（数据模型）
+scripts/
+├── seed.cjs                   # 种子数据
+└── smoke.cjs                  # 冒烟测试（smoke test）
+```
+
+---
+
+## 六、架构概览
+
+```mermaid
+%%{init: {'theme':'dark', 'themeVariables': {'fontSize':'14px', 'lineColor':'#6c6a64'}}}%%
+flowchart TB
+    subgraph BROWSER["🌐 浏览器"]
+        CC["Client Component · 交互 / 表单 / 搜索 / 收藏"]
+    end
+
+    subgraph NEXT["Next.js App Router"]
+        SC["Server Component · SSR 首屏渲染"]
+        SA["Server Actions · CRUD / 搜索"]
+        RH["Route Handlers · 收藏 API / AI 流式 SSE"]
+    end
+
+    subgraph DATA["数据层"]
+        PR["Prisma ORM · 单例 globalThis 缓存"]
+        DB[("Neon PostgreSQL")]
+    end
+
+    subgraph AI["AI 工作流"]
+        WF["LangGraph StateGraph · 5 节点 + 条件边精炼环"]
+        DS[/"DeepSeek LLM"\]
+    end
+
+    CC -->|"表单提交"| SA
+    CC -->|"收藏 / AI 生成"| RH
+    CC -->|"SSE 流消费"| RH
+    SC -->|"服务端查库"| PR
+    SA --> PR
+    RH --> PR
+    RH -.->|"触发 AI 出题"| WF
+    WF --> DS
+    PR --> DB
+
+    classDef browser fill:#3d3d3a,stroke:#6c6a64,color:#faf9f5
+    classDef next fill:#141413,stroke:#cc785c,color:#faf9f5
+    classDef data fill:#141413,stroke:#8e8b82,color:#faf9f5
+    classDef ai fill:#141413,stroke:#a9583e,color:#faf9f5
+    class CC browser
+    class SC,SA,RH next
+    class PR,DB data
+    class WF,DS ai
+```
+
+**关键设计**：
+
+- **Server Component（服务端组件）**&#x8D1F;责首屏查库渲染（SSR，服务端渲染），数据作为 props（属性）传给 Client Component（客户端组件）。
+- **Server Action（服务端动作）**（`"use server"` 标记的函数）处理写操作——前端直接调服务端函数，Next.js 自动序列化参数/返回值，无需手写 API Route（API 路由）。
+- **Route Handler（路由处理）**&#x5904;理需要长连接的场景（SSE 流式输出、RESTful 收藏接口）。
+- **Prisma 单例**：通过 `globalThis` 缓存实例，防止 Next.js 热重载（HMR，Hot Module Replacement）重复创建耗尽数据库连接。
+
+---
+
+## 七、AI 工作流
+
+AI 出题不是简单调一次 API。它是一套 **5 节点 LangGraph 工作流（Workflow）**，带自我优化闭环：
+
+```mermaid
+%%{init: {'theme':'dark', 'themeVariables': {'fontSize':'14px', 'lineColor':'#6c6a64'}}}%%
+flowchart TB
+    A["<b>① 分析简历 · analyzeResume</b><br/>提取技能 / 判定水平 / 识别盲区"]
+
+    B["<b>② 路由分流 · routeCandidate</b><br/>纯函数算 level · targetRole · bias 权重"]
+
+    C["<b>③ 规划策略 · planStrategy</b><br/>选知识域 · 定深度 · 分题型 · 排难度"]
+
+    D["<b>④ 生成题目 · generateQuestions</b><br/>Promise.all 并行扇出 · 域级重试 · 精炼只换坏桶"]
+
+    E["<b>⑤ 语义校验 · validateQuestions</b><br/>5 道规则门禁 · 难度/长度/标签/词元/相关性"]
+
+    F["<b>🏁 输出完成</b>"]
+
+    A -->|"结构化分析"| B
+    B -->|"路由决策"| C
+    C -->|"出题策略 domains[]"| D
+    D -->|"题目列表"| E
+    E -->|"不达标 ≤ 2 轮 · 回退重出失败域"| D
+    E -->|"校验通过"| F
+
+    classDef llm fill:#141413,stroke:#cc785c,color:#faf9f5
+    classDef pure fill:#141413,stroke:#8e8b82,color:#faf9f5
+    classDef finish fill:#141413,stroke:#a9583e,color:#faf9f5
+    class A,C,D llm
+    class B,E pure
+    class F finish
+```
+
+| 节点                        | 做什么                                            | 调 LLM（大模型）？ |
+| ------------------------- | ---------------------------------------------- | ----------- |
+| ① analyzeResume（分析简历）     | 从简历提取技术栈、技能、项目经验、水平、盲区                         | ✅           |
+| ② routeCandidate（路由分流）  | 纯函数算 level（水平）/ targetRole（目标角色）/ 题型权重         | ❌           |
+| ③ planStrategy（规划策略）      | 根据分析结果规划出题策略（哪些域、各几道、什么题型）                     | ✅           |
+| ④ generateQuestions（生成题目） | 各知识域并行调用 LLM 出题（Promise.all 扇出 fan-out），域内自带重试 | ✅           |
+| ⑤ validateQuestions（语义校验） | 确定性规则校验（难度范围/长度/标签/开放式词元/相关性）                  | ❌           |
+
+**关键工程决策**：
+
+- **路由分流不调 LLM**（节点 ②）：输入已是结构化对象，纯函数可复现、不漂移、省 token（大模型计费单位）。
+- **校验不靠 LLM 自评**（节点 ⑤）：LLM-as-Judge（大模型当评委）有位置/冗长/自我增强等已知偏差，且对 prompt 敏感、主观任务一致率下降，用确定性规则当硬门禁更可控。
+- **域级重试不连坐**：只重出失败的域（"只换坏桶"），已成功的域不动。
+- **精炼环（refine loop）硬上限**：最多 2 轮回退重出，保证必终止。
+- **并行扇出（parallel fan-out）**：代码真并发、域级解耦可单独重试；但实际仅生成 5-6 题、端到端受最慢域延迟主导，收益有限（DeepSeek flash 并发上限 2500，本项目同时仅发数个请求碰不到，非瓶颈）。
+
+> **模式归属**：这是 **Workflow（工作流）**——预定代码路径编排（路由/并行/评估器-优化器），不是自主 Agent（智能体）。我把"需可控环节"从 LLM 拿回确定性代码。
+
+---
+
+## 八、数据模型
+
+6 张表，核心关系：
+
+```
+User（用户）──< Question（题目）──< QuestionTag（题目-标签关联）>── Tag（标签）
+  │                          │
+  └──< Review（复盘）──< ReviewAnswer（逐题评分）>──┘
+
+GenerationRun（AI 出题运行记录，独立表）
+```
+
+| 表                    | 说明                                     |
+| -------------------- | -------------------------------------- |
+| User（用户）             | 用户（当前单用户，userId 硬编码 default-user）      |
+| Question（题目）         | 题目（标题/正文 Markdown/难度/来源/收藏标记/是否 AI 生成） |
+| Tag（标签）              | 标签（名称/颜色，名称唯一）                         |
+| QuestionTag（题目-标签关联） | 多对多关联表（复合主键 questionId + tagId）        |
+| Review（复盘）           | 复盘记录（公司/日期/评分/笔记）——表已建，功能暂缓            |
+| ReviewAnswer（逐题评分）   | 逐题评分——表已建，功能暂缓                         |
+| GenerationRun（出题记录）  | AI 出题运行记录（runId/状态/出题数/失败域/精炼轮次/日志）    |
+
+模型文件：[prisma/schema.prisma](prisma/schema.prisma)
+
+---
+
+## 九、测试与 CI/CD（持续集成/持续部署）
+
+### 测试
+
+```bash
+# 类型检查（type-check）
+npm run type-check
+
+# 单元测试 + 组件测试
+npm test
+```
+
+当前覆盖：11 条 Jest 用例，覆盖表单组件、列表组件、AI 工作流核心逻辑。
+
+### CI（持续集成）双闸门
+
+每次 push（推送）到 `main` 分支，GitHub Actions（GitHub 自动化流水线）自动执行：
+
+1. **type-check**（`tsc --noEmit`）——零类型错误才放行
+2. **test**（`jest`）——全部用例通过才放行
+
+> 说明：CI 的 `build` 步骤默认注释关闭。原因——provider 为 PostgreSQL 后，CI 无法用本地 SQLite 建库，需连远程库（`DATABASE_URL` 走 GitHub Secrets）。部署侧（Vercel）已配 `DATABASE_URL`，会在部署时自动 build 验证，故 CI 只需守 `type-check` + `test` 两道低成本闸门。
+
+### 部署（deployment）
+
+通过 Vercel 连接 GitHub 仓库，`main` 分支自动生产部署。需在 Vercel 项目设置中配置与本地 `.env` 相同的环境变量（`DATABASE_URL` / `DEEPSEEK_API_KEY` / `API_KEY_ENCRYPTION_SECRET`）。
+
+---
+
+## 十、隐私与安全
+
+| 场景                     | 处理方式                                                |
+| ---------------------- | --------------------------------------------------- |
+| 用户自备的 DeepSeek API Key | 经 AES-256-GCM（对称加密算法）加密后存 httpOnly Cookie，永不到达前端 JS |
+| 开发环境 API Key           | 存 `.env`（环境变量文件）的 `DEEPSEEK_API_KEY`，服务端读取，不上传      |
+| 主题偏好                   | 存浏览器 localStorage（本地存储），仅本机生效                       |
+| 简历/JD 文本               | 仅在 AI 出题时传给 DeepSeek API，不在服务端持久化存储                 |
+| 数据库                    | 所有数据仅存于你的 PostgreSQL 实例                             |
+
+---
+
+## 十一、许可
+
+MIT

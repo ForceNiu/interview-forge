@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npm run type-check
+
+  # 单元测试（unit test）质量闸门：每次 push / PR 自动跑 npm test
+  # 当前 QuestionForm 测试用 jsdom 假浏览器 + mock（造假），不依赖真实数据库，无需 DATABASE_URL
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run tests
+        run: npm test
+
+  # build job 暂注释：provider 切 postgresql 后 CI 无法用本地 sqlite 建库，
+  # 需要 GitHub Secrets 存 DATABASE_URL 连 Neon 远程库。
+  # Vercel CD 侧已配 DATABASE_URL，部署时会自动 build 验证。
+  # build:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #
+  #     - name: Install dependencies
+  #       run: npm ci
+  #
+  #     - name: Generate Prisma client
+  #       run: npx prisma generate
+  #
+  #     - name: Build
+  #       run: npm run build
+  #       env:
+  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}

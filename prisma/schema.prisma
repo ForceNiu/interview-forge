@@ -1,0 +1,109 @@
+// Prisma Schema · 面试手记
+// 7 张表：User / Question / Tag / QuestionTag / Review / ReviewAnswer / GenerationRun
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== 用户 =====
+model User {
+  id        String     @id @default(cuid())
+  name      String?
+  email     String     @unique
+  image     String?
+  questions Question[]
+  reviews   Review[]
+}
+
+// ===== 题库 =====
+model Question {
+  id            String        @id @default(cuid())
+  title         String
+  content       String                   // Markdown 正文
+  difficulty    Int           @default(3) // 难度 1-5
+  source        String        @default("other") // 来源：mock / jd / manual / other
+  projectHook   String?                  // 关联项目名（用于面试回答）
+  isAiGenerated Boolean       @default(false)
+  favorite      Boolean       @default(false) // 是否收藏
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  tags          QuestionTag[]            // 多对多关联 Tag
+  reviews       ReviewAnswer[]           // 逐题评分
+
+  @@index([userId])
+}
+
+// ===== 标签 =====
+model Tag {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  color     String        @default("#6366f1")
+  questions QuestionTag[]
+}
+
+// ===== 题目-标签 关联表（多对多） =====
+model QuestionTag {
+  questionId String
+  tagId      String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+}
+
+// ===== 复盘 =====
+model Review {
+  id           String         @id @default(cuid())
+  company      String                    // 面试公司
+  date         DateTime                  // 面试日期
+  overallScore Int            @default(3) // 总体评分 1-5
+  notes        String?                   // 复盘笔记
+  createdAt    DateTime       @default(now())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  answers      ReviewAnswer[]
+
+  @@index([userId])
+  @@index([date])
+}
+
+// ===== 逐题评分 =====
+model ReviewAnswer {
+  id         String   @id @default(cuid())
+  score      Int                 // 该题得分 1-5
+  notes      String?             // 答题笔记
+  reviewId   String
+  review     Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question  @relation(fields: [questionId], references: [id])
+
+  @@index([reviewId])
+  @@index([questionId])
+}
+
+// ===== AI 出题运行记录（L4 可观测性）=====
+// 每次运行留痕：状态 / 候选人水平 / 计划域 / 产出数 / 失败域 / 精炼轮次 / 日志
+// runId 与 L1/L2 的日志 ID 串联，一次运行一条；写库失败不阻塞主流程。
+model GenerationRun {
+  id              String   @id @default(cuid())
+  runId           String   @unique              // 与 L1/L2 日志 runId 串联，一次运行一条
+  status          String                        // "success" | "partial"（彻底失败由接口 500 推断，不落此表）
+  resumeLevel     String?                       // 候选人水平（analysis.overallLevel）
+  plannedDomains  String[]                      // 计划出的知识域名（来自 strategy.domains）
+  producedCount   Int                           // 实际产出题目数
+  failedDomains   String[]                      // 最终失败域（精炼后仍不达标 + 调用层彻底失败）
+  callFailedCount Int      @default(0)          // 调用层失败域数（区分于语义失败，便于排查）
+  rounds          Int      @default(0)          // 精炼轮次（state.round）
+  logs            Json                          // L2 日志全量，事后排查用
+  createdAt       DateTime @default(now())
+
+  @@index([runId])
+  @@index([createdAt])
+}
