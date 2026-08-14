@@ -43,33 +43,14 @@ export default function UnlockPage() {
   }, []);
 
   return (
-    <div
-      className="flex min-h-screen items-center justify-center px-4"
-      style={{
-        // 硬编码浅色背景：避免 dark mode 下主题变量把文字颜色变浅，
-        // 而背景仍保持浅色导致文字"隐身"（Vercel 截图机器人可能触发 dark）。
-        backgroundColor: "#FBF7F0",
-        // 同样硬编码系统字体，避免 next/font 网络字体加载延迟。
-        fontFamily:
-          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
-      }}
-    >
-      <div
-        className="w-full max-w-sm space-y-6 rounded-2xl p-8 shadow-sm"
-        style={{
-          backgroundColor: "#FFFCF7",
-          border: "1px solid #E5DDD0",
-        }}
-      >
+    <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0] px-4">
+      <div className="w-full max-w-sm space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm">
         {/* 标题区 */}
         <div className="space-y-2 text-center">
-          <h1
-            className="text-xl font-semibold"
-            style={{ color: "#2D211B" }}
-          >
+          <h1 className="text-xl font-semibold text-foreground">
             访问受限
           </h1>
-          <p className="text-sm" style={{ color: "#6B5C4F" }}>
+          <p className="text-sm text-muted-foreground">
             请输入访问密码以继续
           </p>
         </div>
@@ -83,8 +64,7 @@ export default function UnlockPage() {
           <div className="space-y-2">
             <label
               htmlFor="site-password"
-              className="block text-sm font-medium"
-              style={{ color: "#2D211B" }}
+              className="block text-sm font-medium text-foreground"
             >
               访问密码
             </label>
@@ -96,35 +76,25 @@ export default function UnlockPage() {
               autoFocus
               placeholder="输入密码…"
               autoComplete="current-password"
-              className="flex h-10 w-full rounded-md px-3 py-2 text-sm outline-none placeholder:text-[#A89A8C] focus:ring-2 focus:ring-[#BC6B4A] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                backgroundColor: "#FFFFFF",
-                border: "1px solid #D6CCC0",
-                color: "#2D211B",
-              }}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
           {/* 错误提示 */}
           {state && "message" in state && typeof (state as { message: string }).message === "string" && (
-            <p className="text-sm" style={{ color: "#DC2626" }}>
+            <p className="text-sm text-red-600 dark:text-red-400">
               {(state as { message: string }).message}
             </p>
           )}
 
-          {/* 提交按钮：硬编码颜色，不依赖主题 */}
-          <Button
-            type="submit"
-            disabled={isPending}
-            className="w-full border-0 text-white hover:opacity-90"
-            style={{ backgroundColor: "#BC6B4A" }}
-          >
+          {/* 提交按钮 */}
+          <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? "验证中…" : "进入站点"}
           </Button>
         </form>
 
         {/* 底部说明 */}
-        <p className="text-center text-xs" style={{ color: "#6B5C4F" }}>
+        <p className="text-center text-xs text-muted-foreground">
           本站点受密码保护。如需访问权限，请联系站长获取密码。
         </p>
       </div>
