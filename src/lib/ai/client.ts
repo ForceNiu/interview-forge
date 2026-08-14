@@ -9,6 +9,15 @@ import https from "https";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEEPSEEK_MODEL = "deepseek-v4-flash";
 
+// ===== DeepSeek V4 思考模式（thinking mode）配置 =====
+// 文档：https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
+// 两个 V4 模型均支持思考模式（默认开启）；开启后模型先输出思维链再给最终答案，提升准确性。
+// thinking: 思考开关，enabled=开启 / disabled=关闭
+// reasoning_effort: 思考强度，low / high / max（flash 三档全支持，pro 暂仅 high/max；默认 high）
+// 注：思考模式下 temperature / top_p 等采样参数「不报错但不生效」，仅非思考模式生效。
+const DEEPSEEK_THINKING: "enabled" | "disabled" = "enabled";
+const DEEPSEEK_REASONING_EFFORT: "low" | "high" | "max" = "high";
+
 /**
  * 🔧 为什么不用 @langchain/openai 的 ChatOpenAI / 也不用全局 fetch：
  *
@@ -203,7 +212,16 @@ class DeepSeekLLM {
   ): Promise<{ content: string }> {
     const messages = toDeepSeekMessages(input);
     const apiUrl = `${DEEPSEEK_BASE_URL}/v1/chat/completions`;
-    const body = JSON.stringify({ model: DEEPSEEK_MODEL, messages, temperature: 0.7 });
+    const body = JSON.stringify({
+      model: DEEPSEEK_MODEL,
+      messages,
+      // 思考模式（V4 新增）：开启链式推理提升出题/校验质量；不需要时把上方 DEEPSEEK_THINKING 改为 "disabled"
+      thinking: { type: DEEPSEEK_THINKING },
+      // 思考强度：low=快/省，high=默认平衡，max=最强（复杂 Agent 场景用 max）
+      reasoning_effort: DEEPSEEK_REASONING_EFFORT,
+      // 思考模式下 temperature 不生效（官方明确），保留以兼容非思考模式下的随机性控制
+      temperature: 0.7,
+    });
 
     let lastErr: Error | null = null;
     // 指数退避重试：重点应对 HTTP 429（限流），其他瞬时错误也兜底

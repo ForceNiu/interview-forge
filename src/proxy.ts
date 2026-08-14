@@ -25,9 +25,11 @@ const PUBLIC_PATHS = ["/unlock"];
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 未配置 SITE_PASSWORD → 站点完全开放（本地开发默认如此）
-  // 这是"开关"：env 里没设密码，门就不生效，避免空密码导致无限重定向
-  if (!process.env.SITE_PASSWORD) {
+  // 仅生产环境启用密码门：
+  //   - 开发环境（NODE_ENV !== "production"）无论是否设 SITE_PASSWORD 都全开放 → 本地免登录直接看
+  //   - 生产环境（Vercel 部署时 NODE_ENV 自动为 "production"）+ 设了 SITE_PASSWORD → 拦截到 /unlock
+  //   - 未配置 SITE_PASSWORD 也全开放（兜底，避免空密码导致无限重定向）
+  if (process.env.NODE_ENV !== "production" || !process.env.SITE_PASSWORD) {
     return NextResponse.next();
   }
 

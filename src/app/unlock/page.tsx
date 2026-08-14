@@ -4,7 +4,7 @@
  * 站点解锁页（/unlock）
  *
  * 这是用户访问受保护站点时看到的唯一页面。
- * 由 middleware.ts 重定向过来——用户未通过密码验证时都会落在这里。
+ * 由 proxy.ts 重定向过来——用户未通过密码验证时都会落在这里。
  *
  * 设计意图：
  *   - 极简：只有一个密码框 + 一个按钮，不显示 NavBar/任何站内导航
@@ -18,7 +18,7 @@
  *   在服务端与 SITE_PASSWORD 比对，原文不出浏览器内存。
  */
 
-import { useActionState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { unlockSite } from "@/actions/unlock";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +31,16 @@ export default function UnlockPage() {
     },
     null
   );
+
+  // from = 用户原本想去的路径（?from=）。用 URLSearchParams 读取会自动把
+  // %2F 解码成 /，避免旧逻辑 .split("=") 拿到字面量 "%2F" 导致跳转坏路径。
+  // 用 useState + useEffect + 受控 value：服务端首屏渲染 "/"（与客户端首屏一致，
+  // 不触发 hydration 警告），挂载后再从地址栏取出真实 from。
+  const [redirectFrom, setRedirectFrom] = useState("/");
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("from");
+    if (f) setRedirectFrom(f);
+  }, []);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0] px-4">
@@ -47,16 +57,8 @@ export default function UnlockPage() {
 
         {/* 密码表单 */}
         <form action={formAction} className="space-y-4">
-          {/* 隐藏字段：记住用户原本想去的路径 */}
-          <input
-            type="hidden"
-            name="from"
-            defaultValue={
-              typeof window !== "undefined"
-                ? window.location.search.slice(1).split("&").find((p) => p.startsWith("from="))?.split("=")[1] || "/"
-                : "/"
-            }
-          />
+          {/* 隐藏字段：记住用户原本想去的路径（已解码，如 / 或 /questions/abc） */}
+          <input type="hidden" name="from" value={redirectFrom} />
 
           {/* 密码输入框 */}
           <div className="space-y-2">

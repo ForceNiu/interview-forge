@@ -53,7 +53,7 @@ Interview Forge（面试锻造）解决这两个问题：
 | `/favorites`            | 收藏页：TanStack Query 拉取收藏列表，乐观更新切换收藏状态                                                |
 | `/tags`                 | 标签管理：标签增删 + 颜色，题目与标签多对多关联                                                |
 | `/ai-generate`          | AI 出题：输入简历 + JD，SSE 流式消费 5 节点工作流进度，实时展示生成题目并一键保存                          |
-| `/unlock`               | 密码门：仅当设置 `SITE_PASSWORD` 时才启用，输入密码后放开全站访问（默认留空 = 全开放）                          |
+| `/unlock`               | 密码门：仅**生产环境**且设置 `SITE_PASSWORD` 时才启用（开发环境全开放），输入密码后放开全站访问                          |
 
 ---
 
@@ -89,7 +89,7 @@ npm run dev
 
 打开 <http://localhost:3000>，开始使用。
 
-> **提示**：如不需要 AI 出题功能，跳过 `DEEPSEEK_API_KEY` 和 `API_KEY_ENCRYPTION_SECRET` 即可，其余功能照常使用。
+> **提示**：本地若不需要 AI 出题，可跳过 `.env` 里的 `DEEPSEEK_API_KEY` 和 `API_KEY_ENCRYPTION_SECRET`（后端会回退本地 Key 兜底或提示页面填写）；但**部署到 Vercel 时 `API_KEY_ENCRYPTION_SECRET` 必须设**（见部署节），否则使用者填 Key 会失败。
 
 ### 种子数据（seed data）
 
@@ -338,11 +338,42 @@ npm test
 1. **type-check**（`tsc --noEmit`）——零类型错误才放行
 2. **test**（`jest`）——全部用例通过才放行
 
-> 说明：CI 的 `build` 步骤默认注释关闭。原因——provider 为 PostgreSQL 后，CI 无法用本地 SQLite 建库，需连远程库（`DATABASE_URL` 走 GitHub Secrets）。部署侧（Vercel）已配 `DATABASE_URL`，会在部署时自动 build 验证，故 CI 只需守 `type-check` + `test` 两道低成本闸门。
+> 说明：CI 的 `build` 步骤已开启，需仓库配置 `DATABASE_URL` 这个 GitHub Secret（独立 Neon 库连接串）——因为 provider 为 PostgreSQL，build 时需连库预渲染部分页面。若未配该 Secret，`build` job 会失败（属预期，不是代码问题）。部署侧（Vercel）同样会配 `DATABASE_URL` 在部署时 build 验证。
 
-### 部署（deployment）
+### 部署（deployment）—— Vercel
 
-通过 Vercel 连接 GitHub 仓库，`main` 分支自动生产部署。需在 Vercel 项目设置中配置与本地 `.env` 相同的环境变量（`DATABASE_URL` / `DEEPSEEK_API_KEY` / `API_KEY_ENCRYPTION_SECRET`）。
+1. 在 Vercel 导入 GitHub 仓库 `ForceNiu/interview-forge`，`main` 分支自动生产部署。
+
+   > 📌 **数据库隔离（重要）**：请为展示仓创建一个**全新的、独立的 Neon 项目**，使用它自己的 `DATABASE_URL`——**不要复用你真实生产环境的数据库**。`interview-forge` 是公开 demo，会建表并写入演示数据；连真实库会污染你的真实题库，也违背「公开 demo 不连真实数据」的初衷。
+
+2. 配置环境变量（Vercel 后台 → 项目 → **Settings → Environment Variables → 逐条 Add**）：
+
+| 变量名 | 必设？ | 说明 | 取值 |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | ✅ 必设 | 你**独立新建**的 Neon 项目连接串（不要复用真实生产库） | 从新建的 Neon 项目控制台复制（需含 `?sslmode=require`） |
+| `SITE_PASSWORD` | 建议设 | 站点访问密码门（**部署者控制谁能进**） | 自定任意字符串；**不设则全站开放** |
+| `API_KEY_ENCRYPTION_SECRET` | ✅ 必设 | 加密使用者填写的 DeepSeek Key（AES-256-GCM 密钥） | 本地执行 `openssl rand -hex 32` 生成（64 位 hex）；**不设则使用者填 Key 时报错** |
+| `DEEPSEEK_API_KEY` | ❌ **不要设** | 部署者不提供 Key | **留空**——每位访客各自在 `/ai-generate` 页面填自己的 DeepSeek Key |
+
+> ⚠️ 三个关键点：
+> - **`DEEPSEEK_API_KEY` 不要配**：本项目是「使用者自带 Key」模式——访客在页面填自己的 DeepSeek Key（AES 加密存 httpOnly Cookie），不消耗部署者额度。若部署者也设了它，会退化为「所有人共用部署者 Key」。
+> - **`API_KEY_ENCRYPTION_SECRET` 必须设**：使用者填 Key 时由 `setup-key` 路由加密、AI 调用时由 `getApiKey` 解密，缺它会导致填写/使用直接报错。
+> - Vercel 部署时 `NODE_ENV` 自动为 `"production"`，密码门与加密逻辑才生效；**本地 `npm run dev` 不设这些也能跑（全开放 + 可用本地 `.env` 的 Key 兜底）**。
+
+3. **首次建表**：仓库已带 Prisma migrations（迁移记录，`prisma/migrations/0001_init`）。在你本地连「为展示仓新建的独立 Neon 库」执行一次：
+   ```bash
+   # 本地 .env 的 DATABASE_URL 已指向独立库后
+   npx prisma migrate deploy
+   ```
+   （`migrate deploy` 会按迁移历史建表/升级，已建过的表不会重建；首次在空库上它即应用 0001_init。）
+
+   > 本地改了 `schema.prisma` 想生成新迁移时，用 `npx prisma migrate dev`（会自动建表 + 生成新迁移文件 + 记录历史）；不要把 `migrate deploy` 和 `db push` 混用，二者建表机制不同。
+
+   > 可选：建表后执行 `node scripts/seed.cjs` 注入一套演示题库 + 标签（只写 `Question`/`Tag`/`QuestionTag`，不涉及 Review）。
+
+4. 部署完成后访问站点：
+   - 设了 `SITE_PASSWORD` → 先跳到 `/unlock` 输密码进入；
+   - 首次用 AI 出题，需在 `/ai-generate` 页面填一次自己的 DeepSeek Key（加密存 30 天，之后免填）。
 
 ---
 

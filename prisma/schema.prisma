@@ -1,5 +1,5 @@
 // Prisma Schema · 面试手记
-// 7 张表：User / Question / Tag / QuestionTag / Review / ReviewAnswer / GenerationRun
+// 5 张表：User / Question / Tag / QuestionTag / GenerationRun
 
 generator client {
   provider = "prisma-client-js"
@@ -17,7 +17,6 @@ model User {
   email     String     @unique
   image     String?
   questions Question[]
-  reviews   Review[]
 }
 
 // ===== 题库 =====
@@ -35,7 +34,6 @@ model Question {
   userId        String
   user          User          @relation(fields: [userId], references: [id])
   tags          QuestionTag[]            // 多对多关联 Tag
-  reviews       ReviewAnswer[]           // 逐题评分
 
   @@index([userId])
 }
@@ -56,36 +54,6 @@ model QuestionTag {
   tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([questionId, tagId])
-}
-
-// ===== 复盘 =====
-model Review {
-  id           String         @id @default(cuid())
-  company      String                    // 面试公司
-  date         DateTime                  // 面试日期
-  overallScore Int            @default(3) // 总体评分 1-5
-  notes        String?                   // 复盘笔记
-  createdAt    DateTime       @default(now())
-  userId       String
-  user         User           @relation(fields: [userId], references: [id])
-  answers      ReviewAnswer[]
-
-  @@index([userId])
-  @@index([date])
-}
-
-// ===== 逐题评分 =====
-model ReviewAnswer {
-  id         String   @id @default(cuid())
-  score      Int                 // 该题得分 1-5
-  notes      String?             // 答题笔记
-  reviewId   String
-  review     Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  questionId String
-  question   Question  @relation(fields: [questionId], references: [id])
-
-  @@index([reviewId])
-  @@index([questionId])
 }
 
 // ===== AI 出题运行记录（L4 可观测性）=====

@@ -51,28 +51,28 @@ jobs:
       - name: Run tests
         run: npm test
 
-  # build job 暂注释：provider 切 postgresql 后 CI 无法用本地 sqlite 建库，
-  # 需要 GitHub Secrets 存 DATABASE_URL 连 Neon 远程库。
-  # Vercel CD 侧已配 DATABASE_URL，部署时会自动 build 验证。
-  # build:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Setup Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: npm
-  #
-  #     - name: Install dependencies
-  #       run: npm ci
-  #
-  #     - name: Generate Prisma client
-  #       run: npx prisma generate
-  #
-  #     - name: Build
-  #       run: npm run build
-  #       env:
-  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  # build job：provider 为 postgresql，build 时需连库预渲染部分页面，
+  # 需要仓库配置 GitHub Secret `DATABASE_URL`（独立 Neon 库连接串）。
+  # 未配该 Secret 时此 job 会失败——属预期，不是代码问题。
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

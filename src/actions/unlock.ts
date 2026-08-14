@@ -16,6 +16,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { sanitizeFrom } from "@/lib/security";
 
 /**
  * 验证密码并设置认证 Cookie
@@ -38,7 +39,8 @@ export async function unlockSite(password: string, from?: string) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
-    redirect(from || "/");
+    redirect(sanitizeFrom(from)); // 同样经开放重定向防护，from 含外站地址也不会带出站
+    return;
   }
 
   // 密码不对 → 返回错误（不透露具体原因）
@@ -57,5 +59,5 @@ export async function unlockSite(password: string, from?: string) {
   });
 
   // 跳回用户原本想去的页面，默认回首页
-  redirect(from || "/");
+  redirect(sanitizeFrom(from));
 }

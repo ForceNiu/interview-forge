@@ -35,6 +35,9 @@ export default function NavBar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // 解锁页 /unlock：未通过验证的用户不该看到站内导航结构，直接不渲染
+  if (pathname === "/unlock") return null;
+
   // 判断当前页高亮：
   // - 首页 "/"：详情页 /questions/[id] 也归属"题库"，一并高亮
   // - 新增题目 /questions/new：只精确匹配自身，避免被首页的 /questions 前缀抢走
