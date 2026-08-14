@@ -60,13 +60,15 @@ export default async function QuestionDetail({
         {/* 渲染关联标签：背景色来自数据库(qt.tag.color)是运行时才知道的 → 必须留 inline style */}
         <div className="flex flex-wrap gap-2">
           {question.tags.map((qt) => (
-            <span
+            // ① 标签 chip 可点击：跳首页并带 ?tag= 过滤，从详情页也能下钻到同标签题
+            <Link
               key={qt.tagId}
-              className="rounded-xl px-2.5 py-0.5 text-[13px]"
+              href={`/?tag=${encodeURIComponent(qt.tag.name)}`}
+              className="rounded-xl px-2.5 py-0.5 text-[13px] transition-opacity hover:opacity-80"
               style={{ background: qt.tag.color, color: textOn(qt.tag.color) }}
             >
               {qt.tag.name}
-            </span>
+            </Link>
           ))}
         </div>
 

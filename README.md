@@ -38,7 +38,7 @@ Interview Forge（面试锻造）解决这两个问题：
 | 📝 题库管理  | 新增、编辑、删除题目，Zod（类型校验库）服务端校验，标签多对多关联                                                                                    |
 | 🏷️ 标签系统 | 独立标签管理页，题目与标签通过中间表多对多关联                                                                                               |
 | ⭐ 收藏     | TanStack Query（查询库）驱动，乐观更新（optimistic update），切换收藏即时响应                                                                |
-| 🔍 搜索    | 后端连库模糊搜索（标题 + 正文），300ms 防抖（debounce），竞态守卫（race condition guard）防错乱                                                    |
+| 🔍 搜索    | 后端连库模糊搜索（标题 + 正文 + 标签），300ms 防抖（debounce），竞态守卫（race condition guard）防错乱                                                    |
 | 🤖 AI 出题 | 输入简历 + JD（职位描述），LangGraph.js（LangGraph 编排框架）编排 5 节点工作流，DeepSeek（深度求索大模型）生成针对性题目，SSE（Server-Sent Events，服务端推送事件）流式推送进度 |
 | 🌓 深色模式  | CSS 变量全站换肤，防闪白 FOUC（Flash of Unstyled Content），localStorage（浏览器本地存储）持久化                                               |
 
@@ -80,8 +80,8 @@ cp .env.example .env
 #   编辑 .env，至少填 DATABASE_URL / DEEPSEEK_API_KEY / API_KEY_ENCRYPTION_SECRET
 #   详见 .env.example 中的注释说明
 
-# 4. 初始化数据库（建表，prisma 无 migrations 目录，用 db push）
-npx prisma db push
+# 4. 初始化数据库（仓库已带 migrations，用 migrate deploy 建表）
+npx prisma migrate deploy
 
 # 5. 启动开发服务器
 npm run dev
@@ -170,12 +170,21 @@ src/
 │       ├── client.ts          # DeepSeek LLM（大模型）客户端
 │       ├── logger.ts          # L1/L2 日志
 │       └── recordRun.ts       # L4 运行记录写库
-├── __tests__/                 # Jest 测试
+├── __tests__/                 # 组件 / 页面 / Server Actions 测试
 │   ├── QuestionForm.test.tsx
 │   ├── QuestionList.test.tsx
+│   ├── questions.test.tsx
+│   ├── tags.test.tsx
 │   └── ai/workflow.test.tsx
+├── lib/
+│   ├── __tests__/             # 纯函数 / 工具类测试
+│   │   ├── crypto.test.tsx
+│   │   ├── search-ui.test.tsx
+│   │   └── validator.test.tsx
+│   ├── search-ui.tsx          # 搜索摘要 / 高亮纯函数
+│   └── ...
 prisma/
-├── schema.prisma              # 6 张表定义（数据模型）
+├── schema.prisma              # 5 张表定义（数据模型）
 scripts/
 ├── seed.cjs                   # 种子数据
 └── smoke.cjs                  # 冒烟测试（smoke test）
@@ -293,12 +302,10 @@ flowchart TB
 
 ## 八、数据模型
 
-6 张表，核心关系：
+5 张表，核心关系：
 
 ```
 User（用户）──< Question（题目）──< QuestionTag（题目-标签关联）>── Tag（标签）
-  │                          │
-  └──< Review（复盘）──< ReviewAnswer（逐题评分）>──┘
 
 GenerationRun（AI 出题运行记录，独立表）
 ```
@@ -309,8 +316,6 @@ GenerationRun（AI 出题运行记录，独立表）
 | Question（题目）         | 题目（标题/正文 Markdown/难度/来源/收藏标记/是否 AI 生成） |
 | Tag（标签）              | 标签（名称/颜色，名称唯一）                         |
 | QuestionTag（题目-标签关联） | 多对多关联表（复合主键 questionId + tagId）        |
-| Review（复盘）           | 复盘记录（公司/日期/评分/笔记）——表已建，功能暂缓            |
-| ReviewAnswer（逐题评分）   | 逐题评分——表已建，功能暂缓                         |
 | GenerationRun（出题记录）  | AI 出题运行记录（runId/状态/出题数/失败域/精炼轮次/日志）    |
 
 模型文件：[prisma/schema.prisma](prisma/schema.prisma)
@@ -329,7 +334,7 @@ npm run type-check
 npm test
 ```
 
-当前覆盖：11 条 Jest 用例，覆盖表单组件、列表组件、AI 工作流核心逻辑。
+当前覆盖 11 个测试套件（约 50 条用例）：表单/列表组件、AI 工作流、搜索与标签下钻逻辑、标签/题目表单校验、安全路径（密码门 / API Key 加密）、收藏切换 API。所有用例均不依赖真实数据库（prisma 全程 mock），可在任意环境稳定跑。
 
 ### CI（持续集成）双闸门
 
@@ -343,6 +348,8 @@ npm test
 ### 部署（deployment）—— Vercel
 
 1. 在 Vercel 导入 GitHub 仓库 `ForceNiu/interview-forge`，`main` 分支自动生产部署。
+
+   > ⚠️ **构建命令（必设）**：项目已提供 `vercel-build` 脚本（`prisma migrate deploy && npm test && next build`）。请在 Vercel 后台 → 项目 → **Settings → Build & Output → Build Command** 填 `npm run vercel-build`。这样**部署前会自动跑单测，测试不通过则构建失败、不会上线**——避免带 bug 的代码被部署出去。若此处是 `next build` 或默认的 `prisma migrate deploy && next build`，则**没有测试门禁**，请务必改成 `npm run vercel-build`。
 
    > 📌 **数据库隔离（重要）**：请为展示仓创建一个**全新的、独立的 Neon 项目**，使用它自己的 `DATABASE_URL`——**不要复用你真实生产环境的数据库**。`interview-forge` 是公开 demo，会建表并写入演示数据；连真实库会污染你的真实题库，也违背「公开 demo 不连真实数据」的初衷。
 
@@ -365,11 +372,11 @@ npm test
    # 本地 .env 的 DATABASE_URL 已指向独立库后
    npx prisma migrate deploy
    ```
-   （`migrate deploy` 会按迁移历史建表/升级，已建过的表不会重建；首次在空库上它即应用 0001_init。）
+   （`migrate deploy` 会按迁移历史建表/升级，已建过的表不会重建；首次在空库上它即应用 0001_init。注意：`vercel-build` 脚本里已包含 `prisma migrate deploy`，所以 Vercel 部署时会自动建表/升级——本地这步是可选的保底，并非必须。）
 
    > 本地改了 `schema.prisma` 想生成新迁移时，用 `npx prisma migrate dev`（会自动建表 + 生成新迁移文件 + 记录历史）；不要把 `migrate deploy` 和 `db push` 混用，二者建表机制不同。
 
-   > 可选：建表后执行 `node scripts/seed.cjs` 注入一套演示题库 + 标签（只写 `Question`/`Tag`/`QuestionTag`，不涉及 Review）。
+   > 可选：建表后执行 `node scripts/seed.cjs` 注入一套演示题库 + 标签（只写 `Question`/`Tag`/`QuestionTag`，不涉及 `GenerationRun`）。
 
 4. 部署完成后访问站点：
    - 设了 `SITE_PASSWORD` → 先跳到 `/unlock` 输密码进入；

@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import type { Prisma } from "@prisma/client";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import TagDeleteButton from "./TagDeleteButton";
 import Toast from "@/components/Toast";
@@ -26,13 +27,17 @@ export default function TagList({ tags }: { tags: TagWithCount[] }) {
               key={tag.id}
               className="group flex flex-row items-center justify-between px-4 py-3"
             >
-              <div className="flex items-center gap-3">
+              {/* ① 整行可点击下钻：跳首页并按此标签过滤，让"网络（5 道题）"点得进去看到那 5 道 */}
+              <Link
+                href={`/?tag=${encodeURIComponent(tag.name)}`}
+                className="flex flex-1 items-center gap-3 hover:opacity-80"
+              >
                 <span className="h-5 w-5 rounded" style={{ background: tag.color }} />
                 <span className="font-medium text-foreground">{tag.name}</span>
                 <span className="text-sm text-muted-foreground">
                   （{tag._count.questions} 道题）
                 </span>
-              </div>
+              </Link>
               {/* 删成功 → 弹"标签已删除"轻提示 */}
               {/* 被引用中（>0 题）→ 常显灰色"使用中"；0 题可删 → 默认就显示红色删除按钮（用户一眼能看出可删） */}
               {tag._count.questions > 0 ? (

@@ -29,7 +29,7 @@ export async function unlockSite(password: string, from?: string) {
 
   // 未配置密码 → 视为"不需要保护"，直接放行
   // 未配置密码 → 视为"开放站点"，直接发 Cookie 放行（防御性，避免任何死循环）
-  // 正常情况下 middleware 已对未配置密码直接放行，此分支仅兜底
+  // 正常情况下 proxy 已对未配置密码直接放行，此分支仅兜底
   if (!correctPassword) {
     const cookieStore = await cookies();
     cookieStore.set("site_auth", "1", {

@@ -26,7 +26,7 @@ jest.mock('@/components/Toast', () => ({
 }));
 
 // ①（续）造假「后端搜索」Server Action：测试环境不连真库、也不加载 next/cache 的服务器内部，
-//    用一份本地数据模拟"连库模糊查 标题+正文"，断言组件确实把搜索委托给了后端。
+//    用一份本地数据模拟"连库模糊查 标题+正文+标签"，断言组件确实把搜索委托给了后端。
 //    注意：mock 数据放在 factory 内部（data），避免引用外部变量触发 jest hoist 的 TDZ 问题。
 jest.mock('@/actions/questions', () => {
   const data = [
@@ -79,26 +79,48 @@ const mockQuestions = [
 
 test('渲染列表时，每张题目卡片都显示标题', () => {
   render(<SearchableQuestions questions={mockQuestions as any} />);
-  expect(screen.getByText('React Hooks 用法')).toBeInTheDocument();
-  expect(screen.getByText('闭包与作用域')).toBeInTheDocument();
+  // 用 link 的 accessible name 匹配：高亮会把标题拆成 <mark> 子节点，
+  // getByText 只能取到「直接文本子节点」会失配，accessibility name 才包含完整标题。
+  expect(screen.getByRole('link', { name: 'React Hooks 用法' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: '闭包与作用域' })).toBeInTheDocument();
 });
 
 test('搜索框输入关键词后，调用后端搜索并只显示匹配的卡片', async () => {
   render(<SearchableQuestions questions={mockQuestions as any} />);
 
   // 初始两条都在
-  expect(screen.getByText('React Hooks 用法')).toBeInTheDocument();
-  expect(screen.getByText('闭包与作用域')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'React Hooks 用法' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: '闭包与作用域' })).toBeInTheDocument();
 
   // 输入 "React"：搜索现在是「防抖 + 后端 Server Action」，异步返回，用 waitFor 等结果
   fireEvent.change(
-    screen.getByPlaceholderText('搜索题目（标题或正文）...'),
+    screen.getByPlaceholderText('搜索题目（标题/正文/标签）...'),
     { target: { value: 'React' } }
   );
 
   // 后端结果回来后：匹配项仍在，不匹配项消失（数据来自 mock 的 searchQuestions）
   await waitFor(() => {
-    expect(screen.getByText('React Hooks 用法')).toBeInTheDocument();
-    expect(screen.queryByText('闭包与作用域')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'React Hooks 用法' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '闭包与作用域' })).not.toBeInTheDocument();
   });
+});
+
+test('传入 activeTag 时只显示带该标签的题目，并显示可清除的标签徽标', () => {
+  render(<SearchableQuestions questions={mockQuestions as any} activeTag="React" />);
+  // 只有带 React 标签的题显示，另一道（无标签）被过滤掉
+  expect(screen.getByRole('link', { name: 'React Hooks 用法' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: '闭包与作用域' })).not.toBeInTheDocument();
+  // 顶部出现「标签：React ✕」清除按钮
+  const chip = screen.getByRole('button', { name: /标签：React/ });
+  expect(chip).toBeInTheDocument();
+  // 点清除后回到全量列表
+  fireEvent.click(chip);
+  expect(screen.getByRole('link', { name: '闭包与作用域' })).toBeInTheDocument();
+});
+
+test('题目卡片的标签是可点击的链接，指向首页按标签过滤', () => {
+  render(<SearchableQuestions questions={mockQuestions as any} />);
+  const tagLink = screen.getByRole('link', { name: 'React' });
+  expect(tagLink).toBeInTheDocument();
+  expect(tagLink.getAttribute('href')).toBe('/?tag=React');
 });

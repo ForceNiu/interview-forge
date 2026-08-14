@@ -17,6 +17,8 @@ import { useDebounce } from "@/lib/useDebounce";
 import { difficultyLabel, difficultyColor } from "@/lib/difficulty";
 // ③ 标签文字按背景明度自动反色
 import { textOn } from "@/lib/color";
+// ① 搜索结果高亮：标题命中词高亮 + 正文摘要（让「正文命中」的题看得出缘由）
+import { highlight, getSnippet } from "@/lib/search-ui";
 import type { Prisma } from "@prisma/client";
 
 type QuestionWithTags = Prisma.QuestionGetPayload<{
@@ -26,17 +28,22 @@ type QuestionWithTags = Prisma.QuestionGetPayload<{
 // 组件通过 props 收到 questions（由 Server Component 查好后传进来）
 export default function SearchableQuestions({
   questions,
+  activeTag,
 }: {
   questions: QuestionWithTags[];
+  // ① 从 URL ?tag=xxx 传入的当前标签过滤（标签 chip 点击下钻时带上的）
+  activeTag?: string;
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [serverResults, setServerResults] = useState<QuestionWithTags[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ① 标签过滤态：初始值来自 URL（如从标签页点「网络」跳过来）；用户可点 ✕ 清除
+  const [tagFilter, setTagFilter] = useState<string | undefined>(activeTag);
   const reqIdRef = useRef(0);
 
-  // ① 真正的搜索请求：防抖词非空时打到 Server Action（后端连库模糊查 标题+正文）
+  // ① 真正的搜索请求：防抖词非空时打到 Server Action（后端连库模糊查 标题+正文+标签）
   const runSearch = useCallback(async (q: string) => {
     const id = ++reqIdRef.current;
     setLoading(true);
@@ -71,9 +78,13 @@ export default function SearchableQuestions({
   const [fading, setFading] = useState<Record<string, QuestionWithTags>>({});
   const [showToast, setShowToast] = useState(false);
 
+  // ① 基类：搜索态用服务端结果，否则用全量。再叠加标签过滤（?tag= 下钻或卡片 chip 点击）
   const base = serverResults ?? questions;
+  const baseTagged = tagFilter
+    ? base.filter((q) => q.tags.some((qt) => qt.tag.name === tagFilter))
+    : base;
   const map = new Map<string, QuestionWithTags>();
-  base.forEach((q) => map.set(q.id, q));
+  baseTagged.forEach((q) => map.set(q.id, q));
   Object.values(fading).forEach((q) => {
     if (!map.has(q.id)) map.set(q.id, q);
   });
@@ -103,9 +114,21 @@ export default function SearchableQuestions({
     <>
       {/* 头部：标题 + 操作按钮，计数跟随当前过滤结果（all.length）实时变化 */}
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          题库一共有 {all.length} 道
-        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            题库一共有 {all.length} 道
+          </h1>
+          {/* ① 标签过滤态：显示当前标签 + ✕ 清除，点 ✕ 回到全量 */}
+          {tagFilter && (
+            <button
+              type="button"
+              onClick={() => setTagFilter(undefined)}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/20"
+            >
+              标签：{tagFilter} ✕
+            </button>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href="/tags">标签管理</Link>
@@ -121,7 +144,7 @@ export default function SearchableQuestions({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索题目（标题或正文）..."
+          placeholder="搜索题目（标题/正文/标签）..."
           className="pr-9"
         />
         {loading ? (
@@ -179,7 +202,7 @@ export default function SearchableQuestions({
                     href={`/questions/${q.id}`}
                     className="text-lg font-semibold text-foreground hover:text-primary"
                   >
-                    {q.title}
+                    {highlight(q.title, search)}
                   </Link>
                   <div className="mt-2 text-sm">
                     <span
@@ -189,15 +212,37 @@ export default function SearchableQuestions({
                       难度：{difficultyLabel(q.difficulty)}（{q.difficulty}）
                     </span>
                     {q.tags.map((qt) => (
-                      <span
+                      // ① 标签 chip 改为可点击：跳首页并带 ?tag= 过滤，实现"按标签下钻"
+                      <Link
                         key={qt.tag.id}
-                        className="mr-1.5 rounded px-2 py-0.5 text-xs"
+                        href={`/?tag=${encodeURIComponent(qt.tag.name)}`}
+                        className="mr-1.5 rounded px-2 py-0.5 text-xs transition-opacity hover:opacity-80"
                         style={{ background: qt.tag.color, color: textOn(qt.tag.color) }}
                       >
                         {qt.tag.name}
-                      </span>
+                      </Link>
                     ))}
                   </div>
+                  {/* ① 搜索态：在标题下方显示正文摘要并高亮命中词，让「正文命中」的题看得出缘由。
+                      仅 searching && serverResults（即真正走了后端搜索）时显示；初始全量列表不显示以保持简洁。 */}
+                  {searching && serverResults && (() => {
+                    const needle = search.trim().toLowerCase();
+                    // 标题/正文都未命中、但结果里出现了 → 必是标签命中，显式标出以免"不知为何被搜出"
+                    const hitByTag =
+                      needle !== "" &&
+                      !q.title.toLowerCase().includes(needle) &&
+                      !q.content.toLowerCase().includes(needle);
+                    return hitByTag ? (
+                      <span className="mt-2 inline-block rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        标签命中
+                      </span>
+                    ) : null;
+                  })()}
+                  {searching && serverResults && q.content && (
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {highlight(getSnippet(q.content, search), search)}
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center gap-2">
                     <FavoriteButton id={q.id} initialFavorite={q.favorite} />
                     {/* 删除是低频高危操作：桌面端默认隐去，hover 卡片或键盘聚焦时才显形，降低误点 + 视觉噪音 */}

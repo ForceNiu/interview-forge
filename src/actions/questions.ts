@@ -152,7 +152,7 @@ export async function deleteQuestion(
 // ① 连库搜索：把"搜索"从前端 .filter 移到后端 Server Action（Prisma 连库模糊查）
 // 为什么移到后端：浏览器里跑不了 prisma（DB 凭证不能暴露给客户端）；小数据量下也能
 // 借"后端查询"天然规避凭证暴露与数据全量下发。客户端只负责 300ms 防抖后调用本函数。
-// 搜索范围：标题 + 正文（比原前端只匹配标题更全）；mode:'insensitive' 做大小写不敏感，
+// 搜索范围：标题 + 正文 + 标签名（比原前端只匹配标题更全）；mode:'insensitive' 做大小写不敏感，
 // 在 PostgreSQL 上由 ILIKE/CI collation 支撑，无需 citext 扩展。
 export async function searchQuestions(
   query: string
@@ -169,6 +169,8 @@ export async function searchQuestions(
       OR: [
         { title: { contains: q, mode: "insensitive" } },
         { content: { contains: q, mode: "insensitive" } },
+        // ① 标签名也纳入搜索：搜标签名（如「网络」）能命中打过该标签的题，避免"数据存在却搜不到"
+        { tags: { some: { tag: { name: { contains: q, mode: "insensitive" } } } } },
       ],
     },
     include: { tags: { include: { tag: true } } },
