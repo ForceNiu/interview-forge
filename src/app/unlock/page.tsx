@@ -43,7 +43,16 @@ export default function UnlockPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FBF7F0] px-4">
+    <div
+      className="flex min-h-screen items-center justify-center bg-[#FBF7F0] px-4"
+      style={{
+        // 绕过 next/font/google 的 Geist 字体加载：Vercel 自动截图机器人在
+        // redirect 到 /unlock 后等待时间很短，若等 Google Fonts CSS 可能截到
+        // 文字未渲染的半成品。系统字体无需网络加载，首屏文字立即出现。
+        fontFamily:
+          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
+      }}
+    >
       <div className="w-full max-w-sm space-y-6 rounded-2xl border border-border bg-card p-8 shadow-sm">
         {/* 标题区 */}
         <div className="space-y-2 text-center">
