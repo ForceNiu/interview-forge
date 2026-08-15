@@ -6,15 +6,16 @@
 
 | 文档 | 路径 | 说明 |
 | --- | --- | --- |
-| 产品说明 | [project/spec/产品说明.md](project/spec/产品说明.md) | 逐屏功能演示与界面截图（浅色 / 深色） |
-| 技术方案设计文档 | [project/spec/技术方案设计文档.md](project/spec/技术方案设计文档.md) | 架构决策、并发策略、测试与 CI 策略 |
-| 详细设计文档 | [project/spec/详细设计文档.md](project/spec/详细设计文档.md) | 关键模块的实现细节与伪代码 |
-| 项目需求文档 | [project/spec/项目需求文档.md](project/spec/项目需求文档.md) | 功能需求、用户场景与数据模型 |
-| AI 工作流-流程图总览 | [learning/AI工作流-流程图总览.md](learning/AI工作流-流程图总览.md) | LangGraph 5 节点工作流端到端流程图 |
+| 产品说明 | [spec/产品说明.md](spec/产品说明.md) | 逐屏功能演示与界面截图（浅色 / 深色） |
+| 技术方案设计文档 | [spec/技术方案设计文档.md](spec/技术方案设计文档.md) | 架构决策、并发策略、测试与 CI 策略 |
+| 详细设计文档 | [spec/详细设计文档.md](spec/详细设计文档.md) | 关键模块的实现细节与伪代码 |
+| 项目需求文档 | [spec/项目需求文档.md](spec/项目需求文档.md) | 功能需求、用户场景与数据模型 |
+| AI 工作流-流程图总览 | [ai-workflow/AI工作流-流程图总览.md](ai-workflow/AI工作流-流程图总览.md) | LangGraph 5 节点工作流端到端流程图 |
+| AI 出题提示词设计 | [ai-workflow/AI出题提示词设计.md](ai-workflow/AI出题提示词设计.md) | 自动出题 3 段提示词逐段介绍 + 设计方案（LLM/确定性分工、10 域分类、三层追问框架、错误回灌精炼环） |
 
 ## 配图位置
 
-- **界面截图**：`project/spec/产品说明.md` 通过相对路径 `../../screenshots/*.png` 引用，实际存放于 `docs/screenshots/`。
-- **流程图 SVG**：`learning/AI工作流-流程图总览.md` 通过相对路径 `assets/*.svg` 引用，实际存放于 `docs/learning/assets/`。
+- **界面截图**：`spec/产品说明.md` 通过相对路径 `../screenshots/*.png` 引用，实际存放于 `docs/screenshots/`。
+- **流程图 SVG**：`ai-workflow/AI工作流-流程图总览.md` 通过相对路径 `assets/*.svg` 引用，实际存放于 `docs/ai-workflow/assets/`。
 
 > 配图与文档保持原始相对路径，因此在本仓库内直接打开 `.md` 即可正常渲染图片。
