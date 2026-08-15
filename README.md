@@ -94,7 +94,7 @@ npm run dev
 ### 种子数据（seed data）
 
 ```bash
-# 导入 10 道示例前端面试题（可选）
+# 导入 15 道示例前端面试题（可选）
 node scripts/seed.cjs
 ```
 
@@ -143,9 +143,11 @@ src/
 │       │   ├── generate/route.ts    # AI 出题主接口（SSE 流式）
 │       │   ├── save-questions/route.ts  # 保存 AI 生成的题目
 │       │   ├── setup-key/route.ts   # 加密存储用户 API Key
-│       │   └── test/route.ts        # API Key 连通性测试
+│       │   ├── test/route.ts        # API Key 连通性测试
+│       │   ├── graph-order/route.ts # 工作流节点顺序演示（教学用）
+│       │   └── workflow-test/route.ts # 工作流全链路连通性测试
 │       └── questions/
-│           ├── route.ts             # 查收藏列表
+│           ├── route.ts             # 返回全部题目 + 可选 favorite 过滤
 │           └── [id]/favorite/route.ts  # 切换收藏状态
 ├── actions/
 │   ├── questions.ts           # 题库 Server Actions（CRUD + 搜索）
@@ -170,11 +172,14 @@ src/
 │       ├── client.ts          # DeepSeek LLM（大模型）客户端
 │       ├── logger.ts          # L1/L2 日志
 │       └── recordRun.ts       # L4 运行记录写库
-├── __tests__/                 # 组件 / 页面 / Server Actions 测试
+├── __tests__/                 # 组件 / 页面 / Server Actions / 路由测试
 │   ├── QuestionForm.test.tsx
 │   ├── QuestionList.test.tsx
 │   ├── questions.test.tsx
 │   ├── tags.test.tsx
+│   ├── proxy.test.tsx         # 密码门 proxy 分支
+│   ├── unlock.test.tsx        # 解锁 Server Action
+│   ├── favorite-route.test.tsx  # 收藏切换路由
 │   └── ai/workflow.test.tsx
 ├── lib/
 │   ├── __tests__/             # 纯函数 / 工具类测试
@@ -259,7 +264,7 @@ flowchart TB
 
     C["<b>③ 规划策略 · planStrategy</b><br/>选知识域 · 定深度 · 分题型 · 排难度"]
 
-    D["<b>④ 生成题目 · generateQuestions</b><br/>Promise.all 并行扇出 · 域级重试 · 精炼只换坏桶"]
+    D["<b>④ 生成题目 · generateQuestions</b><br/>mapWithConcurrency 限 5 路并发 · 域级重试 · 精炼只换坏桶"]
 
     E["<b>⑤ 语义校验 · validateQuestions</b><br/>5 道规则门禁 · 难度/长度/标签/词元/相关性"]
 
@@ -285,7 +290,7 @@ flowchart TB
 | ① analyzeResume（分析简历）     | 从简历提取技术栈、技能、项目经验、水平、盲区                         | ✅           |
 | ② routeCandidate（路由分流）  | 纯函数算 level（水平）/ targetRole（目标角色）/ 题型权重         | ❌           |
 | ③ planStrategy（规划策略）      | 根据分析结果规划出题策略（哪些域、各几道、什么题型）                     | ✅           |
-| ④ generateQuestions（生成题目） | 各知识域并行调用 LLM 出题（Promise.all 扇出 fan-out），域内自带重试 | ✅           |
+| ④ generateQuestions（生成题目） | 各知识域限 5 路并发调用 LLM 出题（mapWithConcurrency(limit=5)），域内自带重试 | ✅           |
 | ⑤ validateQuestions（语义校验） | 确定性规则校验（难度范围/长度/标签/开放式词元/相关性）                  | ❌           |
 
 **关键工程决策**：
@@ -312,7 +317,7 @@ GenerationRun（AI 出题运行记录，独立表）
 
 | 表                    | 说明                                     |
 | -------------------- | -------------------------------------- |
-| User（用户）             | 用户（当前单用户，userId 硬编码 default-user）      |
+| User（用户）             | 用户（单用户，userId 由 prisma.user.findFirst()/upsert 动态取，非硬编码）      |
 | Question（题目）         | 题目（标题/正文 Markdown/难度/来源/收藏标记/是否 AI 生成） |
 | Tag（标签）              | 标签（名称/颜色，名称唯一）                         |
 | QuestionTag（题目-标签关联） | 多对多关联表（复合主键 questionId + tagId）        |
@@ -336,12 +341,13 @@ npm test
 
 当前覆盖 11 个测试套件（约 50 条用例）：表单/列表组件、AI 工作流、搜索与标签下钻逻辑、标签/题目表单校验、安全路径（密码门 / API Key 加密）、收藏切换 API。所有用例均不依赖真实数据库（prisma 全程 mock），可在任意环境稳定跑。
 
-### CI（持续集成）双闸门
+### CI（持续集成）三道闸门
 
 每次 push（推送）到 `main` 分支，GitHub Actions（GitHub 自动化流水线）自动执行：
 
 1. **type-check**（`tsc --noEmit`）——零类型错误才放行
 2. **test**（`jest`）——全部用例通过才放行
+3. **build**（`next build`）——连 `DATABASE_URL` 预渲染，构建失败则部署中断
 
 > 说明：CI 的 `build` 步骤已开启，需仓库配置 `DATABASE_URL` 这个 GitHub Secret（独立 Neon 库连接串）——因为 provider 为 PostgreSQL，build 时需连库预渲染部分页面。若未配该 Secret，`build` job 会失败（属预期，不是代码问题）。部署侧（Vercel）同样会配 `DATABASE_URL` 在部署时 build 验证。
 
@@ -399,3 +405,19 @@ npm test
 ## 十一、许可
 
 MIT
+
+---
+
+## 📚 项目文档
+
+本项目随附完整的产品设计、技术方案与 AI 工作流说明，详见 [docs/README.md](docs/README.md)：
+
+| 文档 | 路径 |
+| --- | --- |
+| 产品说明 | [docs/project/spec/产品说明.md](docs/project/spec/产品说明.md) |
+| 技术方案设计文档 | [docs/project/spec/技术方案设计文档.md](docs/project/spec/技术方案设计文档.md) |
+| 详细设计文档 | [docs/project/spec/详细设计文档.md](docs/project/spec/详细设计文档.md) |
+| 项目需求文档 | [docs/project/spec/项目需求文档.md](docs/project/spec/项目需求文档.md) |
+| AI 工作流-流程图总览 | [docs/learning/AI工作流-流程图总览.md](docs/learning/AI工作流-流程图总览.md) |
+
+> 文档配图见 `docs/screenshots/`（界面截图）与 `docs/learning/assets/`（流程图 SVG）。
