@@ -35,3 +35,6 @@ next-env.d.ts
 /coverage
 
 # screenshot artifacts（产品说明文档引用的界面截图，随文档提交）
+
+# project-local memory（非源码，绝不提交）
+/.workbuddy/
