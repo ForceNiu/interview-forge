@@ -34,5 +34,4 @@ next-env.d.ts
 # testing / coverage
 /coverage
 
-# screenshot artifacts（可重生成产物）
-/docs/screenshots
+# screenshot artifacts（产品说明文档引用的界面截图，随文档提交）
