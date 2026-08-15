@@ -27,7 +27,7 @@ export const generatedQuestionSchema = z.array(
 
 // 节点① 对 LLM 返回的「简历分析」做运行时校验（与 ④ 同一套生产级模式）
 // 用途：LLM 偶尔会返回缺字段/类型错的分析，这里在写入 state 前拦一道，
-// 校验不通过就抛 ZodError → 节点①抛错 → LangGraph 框架 retryPolicy 自动重试（最多 3 次）。
+// 校验不通过就抛 ZodError → 节点①抛错 → 手写 for 循环重试（最多 3 次，lastErr 回灌修正提示，非框架 retryPolicy）。
 // 与 ③ 一致：畸形即重试，不再 silently（静默）产出坏数据。
 export const resumeAnalysisSchema = z.object({
   primaryStack: z.string(),
@@ -49,7 +49,7 @@ export const resumeAnalysisSchema = z.object({
 // 节点③ 对 LLM 返回的「出题策略」做运行时校验（与 ① ④ 同一套生产级模式）
 // 用途：LLM 偶尔会返回缺字段/类型错的策略（如 domains 缺失、depth 枚举错、count 非数字），
 // 这里在写入 state 前拦一道；校验不通过就抛 ZodError → 节点③抛错 →
-// LangGraph 框架 retryPolicy 自动重试（最多 3 次）。畸形即重试，不再 silently 产出坏数据。
+// 手写 for 循环重试（最多 3 次，lastErr 回灌修正提示，非框架 retryPolicy）。畸形即重试，不再 silently 产出坏数据。
 export const strategySchema = z.object({
   domains: z
     .array(

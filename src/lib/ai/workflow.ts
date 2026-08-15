@@ -5,7 +5,7 @@ import { makeRunId, appendLog, type LogLine } from "./logger";
 import { generatedQuestionSchema, validateQuestionSemantics, resumeAnalysisSchema, strategySchema, validateDomainDepthConsistency, validateTotalCount } from "@/lib/validator";
 
 // 重试与超时参数（集中放一处，方便统一调）
-// MAX_ATTEMPTS：每个节点/每个域最多重试次数（节点①③交给 LangGraph 框架，节点④手写）
+// MAX_ATTEMPTS：每个节点/每个域最多重试次数（节点①③④ 均为手写 for 循环 + lastErr 错误回灌重试，非框架 retryPolicy；节点② 纯函数无重试）
 const MAX_ATTEMPTS = 3;
 // NODE_TIMEOUT_MS：单次调用的墙钟上限（毫秒）。超时即中止请求并重试
 // 注意：经代理隧道出网 + DeepSeek 生成大段 JSON，单次调用实测 14~30s；
@@ -145,7 +145,7 @@ interface GeneratedQuestion {
   content: string;
   difficulty: number;
   tags: string[];
-  // 内部标记：题属于哪个知识域。仅用于 ④ 校验分组 + ③ 重出时「只换坏桶、不动好桶」。
+  // 内部标记：题属于哪个知识域。仅用于 ④ 校验分组 + ④ 重出时「只换坏桶、不动好桶」（精炼环只重出失败域）。
   // 存库时被剥离（见 save-questions 路由），不会进入题库表。
   _domain?: string;
 }
@@ -164,7 +164,7 @@ const WorkflowState = Annotation.Root({
   generationDone: Annotation<boolean>, // 节点④完成标记（区分"还没跑"和"跑了但 0 题"）
   // —— 精炼环（自我优化）新增字段 ——
   round: Annotation<number>, // 当前精炼轮次（0=首次生成，1+=第几轮重出）
-  refineDomains: Annotation<string[]>, // 需重出的域（由 ④ 写入，③ 读取，决定「只重出失败域」）
+  refineDomains: Annotation<string[]>, // 需重出的域（由 ⑤ 写入，④ 读取，决定「只重出失败域」）
   // —— 路由分流（Routing（路由分流））新增字段 ——
   routing: Annotation<RoutingDecision | null>, // ② 确定性分类结果，注入 ② 让策略偏重题型
 });
@@ -591,7 +591,7 @@ async function generateQuestions(state: typeof WorkflowState.State, config?: any
 // ============================================================
 // 节点⑤：确定性语义校验（硬门禁主力，不靠 LLM 评分）
 // 对每题做客观规则检查，违规题所属域进入「重出」队列（refineDomains）。
-// 只打标、不改 questions——重出由 ③ 负责。
+// 只打标、不改 questions——重出由 ④ 负责（精炼环回节点④只重出失败域）。
 // ============================================================
 async function validateQuestions(state: typeof WorkflowState.State) {
   const runId = state.runId;
@@ -627,7 +627,7 @@ async function validateQuestions(state: typeof WorkflowState.State) {
   return { round, refineDomains: semanticFailed, failedDomains, logs };
 }
 
-// 条件边判定：是否进入精炼环（回 ③ 重出失败域）
+// 条件边判定：是否进入精炼环（回 ④ 重出失败域）
 function shouldRefine(state: typeof WorkflowState.State): "refine" | "end" {
   const failed = state.refineDomains ?? [];
   // round <= MAX_REFINE_ROUNDS：如上限 2，则第 1、2 轮校验失败都触发重出，第 3 轮停止
@@ -653,7 +653,7 @@ export function buildWorkflow() {
     .addEdge("routeCandidate", "planStrategy")
     .addEdge("planStrategy", "generateQuestions")
     .addEdge("generateQuestions", "validateQuestions")
-    // 自我优化闭环：④ 发现有域不达标且未达轮次上限 → 回 ③ 只重出失败域
+    // 自我优化闭环：④ 发现有域不达标且未达轮次上限 → 回 ④（generateQuestions）只重出失败域
     .addConditionalEdges("validateQuestions", shouldRefine, {
       refine: "generateQuestions",
       end: END,
