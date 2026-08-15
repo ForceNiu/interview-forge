@@ -16,6 +16,8 @@
 
 ![License](https://img.shields.io/badge/License-MIT-gold)
 
+![Interview Forge 项目封面](public/og-zh.png)
+
 ---
 
 ## 一、这是什么

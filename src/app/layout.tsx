@@ -23,11 +23,20 @@ export const metadata: Metadata = {
     description: "前端面试题库与标签管理 · 全栈 Next.js + Prisma + AI 出题",
     type: "website",
     locale: "zh_CN",
+    images: [
+      {
+        url: "/og-zh.png",
+        width: 1200,
+        height: 630,
+        alt: "面试手记 · Interview Forge",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "面试手记 · Interview Forge",
     description: "前端面试题库与标签管理 · 全栈 Next.js + Prisma + AI 出题",
+    images: ["/og-zh.png"],
   },
 };
 
