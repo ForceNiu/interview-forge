@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 import DeleteButton from "@/components/DeleteButton";
 import { Button } from "@/components/ui/button";
 
@@ -11,18 +12,18 @@ import { Button } from "@/components/ui/button";
 export default function DetailActions({ id }: { id: string }) {
   const router = useRouter();
 
+  // 删成功后跳回首页并带 ?toast= 参数。useCallback 稳定引用，传给 memo 化的 DeleteButton。
+  const handleDeleted = useCallback(() => {
+    router.push(`/?toast=${encodeURIComponent("题目已删除")}`);
+  }, [router]);
+
   return (
     <div className="mt-6 flex items-center gap-3">
       <Button asChild size="sm">
         <Link href={`/questions/${id}/edit`}>编辑</Link>
       </Button>
       {/* 删成功后：跳回首页，并带上 ?toast= 让全局 Toast 弹"题目已删除" */}
-      <DeleteButton
-        id={id}
-        onDeleted={() =>
-          router.push(`/?toast=${encodeURIComponent("题目已删除")}`)
-        }
-      />
+      <DeleteButton id={id} onDeleted={handleDeleted} />
     </div>
   );
 }

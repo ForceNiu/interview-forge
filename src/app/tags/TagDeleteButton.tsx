@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useState, useEffect, useRef } from "react";
+import { useActionState, useState, useEffect, useRef, memo } from "react";
 import { deleteTag } from "@/actions/tags";
 import { Button } from "@/components/ui/button";
 
-export default function TagDeleteButton({
+function TagDeleteButton({
   id,
   disabled,
   onDeleted,
@@ -73,3 +73,7 @@ export default function TagDeleteButton({
     </Button>
   );
 }
+
+// memo：父（标签列表）重渲染时，id / disabled / onDeleted 不变则跳过重渲染。
+// 配合 TagList 用 useCallback 稳定 onDeleted，删除一个标签不会牵连整列重算。
+export default memo(TagDeleteButton);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, memo } from "react";
 import { useRouter } from "next/navigation";
 import { difficultyColor, difficultyLabel } from "@/lib/difficulty";
 import { ERROR_KIND_ICON, type ErrorKind } from "@/lib/ai/errorMessage";
@@ -66,6 +66,62 @@ const ERROR_PHASE_LABEL: Record<string, string> = {
 };
 
 const PHASE_ORDER = ["analyzeResume", "routeCandidate", "planStrategy", "generateQuestions", "refine"];
+
+// ① 单张"题目审核"卡片：用 memo 包裹。
+// SSE（服务器推送）流式追加题目时，父组件每次收到事件都会重渲染；
+// 卡片只在自身 props（题目内容、选中态）变化时才重渲染——
+// 既存的卡片（q 引用不变、selected 布尔不变）跳过重算，只有新追加的卡片渲染出来。
+const QuestionReviewCard = memo(function QuestionReviewCard({
+  q,
+  index,
+  selected,
+  onToggle,
+}: {
+  q: Question;
+  index: number;
+  selected: boolean;
+  onToggle: (i: number) => void;
+}) {
+  return (
+    <Card
+      className={
+        "space-y-2 p-4 transition-all " +
+        (selected ? "border-primary shadow-sm" : "border-border opacity-50")
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="rounded px-1.5 py-0.5 text-xs font-medium"
+          style={{ color: difficultyColor(q.difficulty), background: "hsl(var(--muted))" }}
+        >
+          {difficultyLabel(q.difficulty)}（{q.difficulty}）
+        </span>
+        {q.tags.map((tag) => (
+          <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      <h3 className="text-base font-semibold text-foreground">{q.title}</h3>
+
+      <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{q.content}</p>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onToggle(index)}
+        className={
+          selected
+            ? "border-destructive text-destructive hover:bg-destructive/10"
+            : "border-success text-success hover:bg-success/10"
+        }
+      >
+        {selected ? "删除此题" : "保留此题"}
+      </Button>
+    </Card>
+  );
+});
 
 // ─── 页面 ───
 
@@ -281,13 +337,19 @@ export default function AiGeneratePage() {
 
   // ── 题目选择 ──
 
-  const toggleQuestion = (index: number) => {
+  // 切换某题选中态：用 useCallback 稳定引用，传给每个 QuestionReviewCard（已 memo）。
+  // 勾选其中一题时，只有该题 selected 布尔变化 → 仅那一张卡片重渲染。
+  const toggleQuestion = useCallback((index: number) => {
     setSelectedQuestions((prev) => {
       const next = new Set(prev);
-      next.has(index) ? next.delete(index) : next.add(index);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
       return next;
     });
-  };
+  }, []);
 
   // ── 保存 ──
 
@@ -540,41 +602,13 @@ export default function AiGeneratePage() {
           {questions.map((q, i) => {
             const selected = selectedQuestions.has(i);
             return (
-              <Card
+              <QuestionReviewCard
                 key={i}
-                className={"space-y-2 p-4 transition-all " + (selected ? "border-primary shadow-sm" : "border-border opacity-50")}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className="rounded px-1.5 py-0.5 text-xs font-medium"
-                    style={{ color: difficultyColor(q.difficulty), background: "hsl(var(--muted))" }}
-                  >
-                    {difficultyLabel(q.difficulty)}（{q.difficulty}）
-                  </span>
-                  {q.tags.map((tag) => (
-                    <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <h3 className="text-base font-semibold text-foreground">{q.title}</h3>
-
-                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{q.content}</p>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleQuestion(i)}
-                  className={
-                    selected
-                      ? "border-destructive text-destructive hover:bg-destructive/10"
-                      : "border-success text-success hover:bg-success/10"
-                  }
-                >
-                  {selected ? "删除此题" : "保留此题"}
-                </Button>
-              </Card>
+                q={q}
+                index={i}
+                selected={selected}
+                onToggle={toggleQuestion}
+              />
             );
           })}
 
