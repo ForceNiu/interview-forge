@@ -295,6 +295,8 @@ flowchart TB
 | ④ generateQuestions（生成题目） | 各知识域限 5 路并发调用 LLM 出题（mapWithConcurrency(limit=5)），域内自带重试 | ✅           |
 | ⑤ validateQuestions（语义校验） | 确定性规则校验（难度范围/长度/标签/开放式词元/相关性）                  | ❌           |
 
+> 📄 自动出题的 3 段提示词（Prompt，提示词）逐段原文介绍与设计方案（LLM（大模型）/ 确定性代码分工、10 个知识域分类、三层追问框架、错误回灌精炼环等），详见 [docs/ai-workflow/AI出题提示词设计.md](docs/ai-workflow/AI出题提示词设计.md)。
+
 **关键工程决策**：
 
 - **路由分流不调 LLM**（节点 ②）：输入已是结构化对象，纯函数可复现、不漂移、省 token（大模型计费单位）。
@@ -416,10 +418,10 @@ MIT
 
 | 文档 | 路径 |
 | --- | --- |
-| 产品说明 | [docs/project/spec/产品说明.md](docs/project/spec/产品说明.md) |
-| 技术方案设计文档 | [docs/project/spec/技术方案设计文档.md](docs/project/spec/技术方案设计文档.md) |
-| 详细设计文档 | [docs/project/spec/详细设计文档.md](docs/project/spec/详细设计文档.md) |
-| 项目需求文档 | [docs/project/spec/项目需求文档.md](docs/project/spec/项目需求文档.md) |
-| AI 工作流-流程图总览 | [docs/learning/AI工作流-流程图总览.md](docs/learning/AI工作流-流程图总览.md) |
+| 产品说明 | [docs/spec/产品说明.md](docs/spec/产品说明.md) |
+| 技术方案设计文档 | [docs/spec/技术方案设计文档.md](docs/spec/技术方案设计文档.md) |
+| 详细设计文档 | [docs/spec/详细设计文档.md](docs/spec/详细设计文档.md) |
+| 项目需求文档 | [docs/spec/项目需求文档.md](docs/spec/项目需求文档.md) |
+| AI 工作流-流程图总览 | [docs/ai-workflow/AI工作流-流程图总览.md](docs/ai-workflow/AI工作流-流程图总览.md) |
 
-> 文档配图见 `docs/screenshots/`（界面截图）与 `docs/learning/assets/`（流程图 SVG）。
+> 文档配图见 `docs/screenshots/`（界面截图）与 `docs/ai-workflow/assets/`（流程图 SVG）。
