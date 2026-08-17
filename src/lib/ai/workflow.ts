@@ -150,6 +150,27 @@ interface GeneratedQuestion {
   _domain?: string;
 }
 
+// ============================================================
+// 同轮结构去重（② 档去重：防单次运行内产出重复题）
+// 标题归一化（去空白/标点/大小写）后去重，保留首次出现者。
+// 在 ④ 产出后、⑤ 校验前调用，避免重复题进入校验与落库。
+// ============================================================
+function normalizeTitle(t: string): string {
+  return (t || "").trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+}
+
+function dedupeQuestions(questions: GeneratedQuestion[]): { deduped: GeneratedQuestion[]; removed: number } {
+  const seen = new Set<string>();
+  const deduped: GeneratedQuestion[] = [];
+  for (const q of questions) {
+    const key = normalizeTitle(q.title ?? "");
+    if (!key || seen.has(key)) continue; // 空标题或已存在 → 跳过
+    seen.add(key);
+    deduped.push(q);
+  }
+  return { deduped, removed: questions.length - deduped.length };
+}
+
 const WorkflowState = Annotation.Root({
   resume: Annotation<string>,
   jd: Annotation<string>,
@@ -521,6 +542,40 @@ ${extraHint}
   return { domainName: domain.name, questions: domainQuestions, ok, logLines: localLogs };
 }
 
+// 补生成（仅首轮去重后触发）：针对去重后空缺的域 / 总数低于 strategy 期望数，补出不重复的新题。
+// 复用 generateForDomain；extraHint 携带已保留标题清单，从源头避免重复。精炼轮不调用（避免干扰精炼环）。
+async function generateSupplement(
+  emptyDomains: QuestionStrategy["domains"][number][],
+  deficit: number,
+  usedTitles: string[],
+  analysis: ResumeAnalysis,
+  llm: Awaited<ReturnType<typeof createLLM>>,
+  runId: string,
+  abortSignal?: AbortSignal
+): Promise<GeneratedQuestion[]> {
+  const avoidHint = usedTitles.length
+    ? `\\n（请勿生成与以下标题重复或高度相似的题：\\n- ${usedTitles.join("\\n- ")}）`
+    : "";
+  const out: GeneratedQuestion[] = [];
+  for (const d of emptyDomains) {
+    const r = await generateForDomain(d, analysis, llm, runId, avoidHint, undefined, 0, 1, abortSignal, false);
+    if (r.ok) out.push(...r.questions);
+  }
+  if (out.length < deficit) {
+    const supplementDomain: QuestionStrategy["domains"][number] = {
+      name: "补充题",
+      category: "engineering",
+      depth: "medium",
+      questionType: "concept",
+      count: deficit - out.length,
+      reasoning: "去重后数量补齐",
+    };
+    const r = await generateForDomain(supplementDomain, analysis, llm, runId, avoidHint, undefined, 0, 1, abortSignal, false);
+    if (r.ok) out.push(...r.questions);
+  }
+  return out;
+}
+
 async function generateQuestions(state: typeof WorkflowState.State, config?: any) {
   // 从 LangGraph 注入的 configurable 中拿到 SSE 推送函数，透传给每个域（用于域级细粒度进度）
   const emit = config?.configurable?.emit as ((data: Record<string, unknown>) => void) | undefined;
@@ -581,11 +636,32 @@ async function generateQuestions(state: typeof WorkflowState.State, config?: any
   }
 
   const allQuestions = [...keptQuestions, ...newQuestions];
-  logs = appendLog(runId, logs, `节点④ 完成：成功 ${allQuestions.length} 题，调用层失败域 ${callFailed.length} 个`);
+  // ② 档去重：单次运行内可能产出标题重复的题，归一化去重后再交 ⑤ 校验。
+  const { deduped: dedupedQuestions, removed: dupRemoved } = dedupeQuestions(allQuestions);
+  logs = appendLog(runId, logs, `节点④ 完成：生成 ${allQuestions.length} 题，同轮去重移除 ${dupRemoved} 道，剩余 ${dedupedQuestions.length} 题，调用层失败域 ${callFailed.length} 个`);
+
+  // 补生成（仅首轮）：去重后某域空缺 或 总数低于 strategy 期望数 → 补出不重复的新题，避免「去重把题丢光 / 总数不保底」。
+  let finalQuestions = dedupedQuestions;
+  if (!isRefine) {
+    const expectedTotal = strategy.domains.reduce((s, d) => s + d.count, 0);
+    const presentDomains = new Set(dedupedQuestions.map((q) => q._domain));
+    // 仅补「去重导致空缺」的域；LLM 真挂的域（callFailed）不再无谓重试，差额由下方合成补充域兜底。
+    const emptyDomains = strategy.domains.filter(
+      (d) => d.count > 0 && !presentDomains.has(d.name) && !callFailed.includes(d.name)
+    );
+    const deficit = expectedTotal - dedupedQuestions.length;
+    if (emptyDomains.length > 0 || deficit > 0) {
+      logs = appendLog(runId, logs, `节点④ 补生成触发：空域 ${emptyDomains.length} 个、差额 ${Math.max(deficit, 0)} 道`);
+      const usedTitles = dedupedQuestions.map((q) => q.title ?? "");
+      const supplement = await generateSupplement(emptyDomains, Math.max(deficit, 0), usedTitles, analysis, llm, runId, abortSignal);
+      finalQuestions = dedupeQuestions([...dedupedQuestions, ...supplement]).deduped;
+      logs = appendLog(runId, logs, `节点④ 补生成完成：补充 ${supplement.length} 道，去重后共 ${finalQuestions.length} 题`);
+    }
+  }
 
   // 调用层失败域已重试 3 次，累积记入 callFailedDomains（不再进 refineDomains，不参与精炼重出）
   const callFailedDomains = Array.from(new Set([...(state.callFailedDomains ?? []), ...callFailed]));
-  return { questions: allQuestions, failedDomains: callFailedDomains, callFailedDomains, refineDomains: [], generationDone: true, logs };
+  return { questions: finalQuestions, failedDomains: callFailedDomains, callFailedDomains, refineDomains: [], generationDone: true, logs };
 }
 
 // ============================================================

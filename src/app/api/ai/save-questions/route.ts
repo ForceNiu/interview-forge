@@ -8,6 +8,12 @@ interface QuestionInput {
   tags: string[];
 }
 
+// ③ 档去重：跨运行精确查重（落库前比对该用户已有题目标题，命中即跳过）。
+// 归一化（去空白/标点/大小写）后比较，避免 "XX？" 与 "XX" 被判为不同。
+function normalizeTitle(t: string): string {
+  return (t || "").trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+}
+
 /**
  * POST /api/ai/save-questions
  *
@@ -31,9 +37,24 @@ export async function POST(request: Request) {
       return Response.json({ error: "用户不存在，无法保存" }, { status: 500 });
     }
 
+    // ③ 档去重：加载该用户已有题目标题（归一化），落库前比对，命中即跳过重复题。
+    const existingTitles = new Set(
+      (await prisma.question.findMany({ where: { userId: user.id }, select: { title: true } }))
+        .map((r) => normalizeTitle(r.title))
+    );
+
     let savedCount = 0;
+    let skippedCount = 0;
 
     for (const q of questions) {
+      // ③ 跨运行查重：同用户已有同名（归一化后）题目 → 跳过，避免重复入库
+      const normTitle = normalizeTitle(q.title);
+      if (normTitle && existingTitles.has(normTitle)) {
+        skippedCount++;
+        continue;
+      }
+      existingTitles.add(normTitle); // 同一批内也防重
+
       // ① 处理标签：查重复用
       const tagRecords = await Promise.all(
         q.tags.map(async (tagName) => {
@@ -69,7 +90,7 @@ export async function POST(request: Request) {
     // 刷新首页缓存
     revalidatePath("/");
 
-    return Response.json({ ok: true, savedCount });
+    return Response.json({ ok: true, savedCount, skippedCount });
   } catch (error) {
     const message = error instanceof Error ? error.message : "保存失败";
     return Response.json({ error: message }, { status: 500 });
