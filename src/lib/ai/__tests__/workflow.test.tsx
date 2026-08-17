@@ -91,6 +91,15 @@ const DEFAULT_STRATEGY = {
   ],
 };
 
+// 精炼环专用：总量满足 8-10 下限（避免被策略规划总量校验拦下），
+// 每域返回 count 道题、标题带序号避免被去重逻辑合并；补生成逻辑因总量已达标而不触发。
+const REFINE_STRATEGY = {
+  domains: [
+    { name: "A", category: "vue", depth: "deep", questionType: "project-deep-dive", count: 4, reasoning: "r" },
+    { name: "B", category: "react", depth: "medium", questionType: "concept", count: 4, reasoning: "r" },
+  ],
+};
+
 // 合规题：可通过 ⑤ 确定性语义校验（开放式 + 相关 + 内容充实）
 const GOOD_Q = {
   title: "说说Vue3响应式原理",
@@ -172,16 +181,28 @@ describe("精炼环（自我优化闭环）", () => {
     (llm.invoke as any).mockImplementation(async (messages: any[]) => {
       const content: string = messages[0]?.content ?? "";
       if (content.includes("请分析以下简历")) return { content: JSON.stringify(ANALYSIS) };
-      if (content.includes("决定出题策略")) return { content: JSON.stringify(DEFAULT_STRATEGY) };
+      if (content.includes("决定出题策略")) return { content: JSON.stringify(REFINE_STRATEGY) };
+      const domain = content.match(/当前知识域：([^\s（]+)/)?.[1] ?? "X";
+      const count = REFINE_STRATEGY.domains.find((d) => d.name === domain)?.count ?? 1;
       const isRefine = content.includes("精炼优化提示");
-      return { content: JSON.stringify([isRefine ? { ...GOOD_Q } : { ...BAD_Q }]) };
+      const qs = Array.from({ length: count }, (_, i) =>
+        isRefine
+          ? {
+              title: `说说Vue3在${domain}域的响应式原理#${i}`,
+              content: `请解释为什么Vue3用Proxy实现响应式，与Vue2的Object.defineProperty有什么区别？具体说明${domain}场景下的依赖收集过程。`,
+              difficulty: 4,
+              tags: ["Vue3响应式原理"],
+            }
+          : { title: `${domain}-坏题#${i}`, content: "c", difficulty: 3, tags: ["x"] }
+      );
+      return { content: JSON.stringify(qs) };
     });
 
     const graph = buildWorkflow();
     const result = await graph.invoke(baseInput());
 
     // A、B 两域首次都不达标，重出后都修好
-    expect(result.questions).toHaveLength(2);
+    expect(result.questions).toHaveLength(8);
     expect(result.failedDomains).toEqual([]); // 修好，最终无失败域
     expect(result.round).toBe(2); // 重出 2 轮后收敛
   });
@@ -191,8 +212,11 @@ describe("精炼环（自我优化闭环）", () => {
     (llm.invoke as any).mockImplementation(async (messages: any[]) => {
       const content: string = messages[0]?.content ?? "";
       if (content.includes("请分析以下简历")) return { content: JSON.stringify(ANALYSIS) };
-      if (content.includes("决定出题策略")) return { content: JSON.stringify(DEFAULT_STRATEGY) };
-      return { content: JSON.stringify([{ ...BAD_Q }]) };
+      if (content.includes("决定出题策略")) return { content: JSON.stringify(REFINE_STRATEGY) };
+      const domain = content.match(/当前知识域：([^\s（]+)/)?.[1] ?? "X";
+      const count = REFINE_STRATEGY.domains.find((d) => d.name === domain)?.count ?? 1;
+      const qs = Array.from({ length: count }, (_, i) => ({ title: `${domain}-坏题#${i}`, content: "c", difficulty: 3, tags: ["x"] }));
+      return { content: JSON.stringify(qs) };
     });
 
     const graph = buildWorkflow();
