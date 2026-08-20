@@ -1,7 +1,7 @@
 "use client";
 // ↑ 要弹 Toast（客户端状态），列表必须放客户端组件里
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -16,9 +16,8 @@ type TagWithCount = Prisma.TagGetPayload<{
 export default function TagList({ tags }: { tags: TagWithCount[] }) {
   const [showToast, setShowToast] = useState(false);
 
-  // 删除成功回调：用 useCallback 稳定引用，传给每个 TagDeleteButton（已 memo）。
-  // 删一个标签时，其他标签项不会因 onDeleted 换引用而跟着重渲染。
-  const handleDeleted = useCallback(() => setShowToast(true), []);
+  // React Compiler 自动稳定回调引用，无需 useCallback
+  const handleDeleted = () => setShowToast(true);
 
   return (
     <>

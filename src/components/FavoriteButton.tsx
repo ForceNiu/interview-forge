@@ -1,7 +1,7 @@
 "use client";
 // 星标按钮：点一下立刻变亮（乐观更新 optimistic），后台写库，失败回滚。
 
-import { useRef, useState, memo } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Star } from "lucide-react";
@@ -56,6 +56,5 @@ function FavoriteButton({ id, initialFavorite, onToggled }: Props) {
   );
 }
 
-// memo：父组件（收藏页/详情页）重渲染时，id / initialFavorite / onToggled 不变则跳过重渲染。
-// 配合 favorites 页用 useCallback 稳定 onToggled，翻页时不会让整列收藏按钮重算。
-export default memo(FavoriteButton);
+// React Compiler 自动 memoize，无需手动包 memo
+export default FavoriteButton;

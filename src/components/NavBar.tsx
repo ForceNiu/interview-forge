@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -15,9 +15,8 @@ const NAV_ITEMS = [
   { href: "/tags", label: "标签管理" },
 ];
 
-// ① 单条导航链接：memo 包裹。父（NavBar）在展开/收起菜单、路由切换时重渲染，
-// 但每条链接只在其 isActive 布尔变化时重渲染——未变的项目跳过重算。
-const NavLink = memo(function NavLink({ href, label, isActive }: { href: string; label: string; isActive: boolean }) {
+// React Compiler 自动 memoize，无需手动包 memo
+function NavLink({ href, label, isActive }: { href: string; label: string; isActive: boolean }) {
   return (
     <Link
       href={href}
@@ -31,7 +30,7 @@ const NavLink = memo(function NavLink({ href, label, isActive }: { href: string;
       {label}
     </Link>
   );
-});
+}
 
 export default function NavBar() {
   const pathname = usePathname();

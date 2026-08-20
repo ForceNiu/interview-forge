@@ -1,7 +1,7 @@
 "use client";
 // ↑ 标了 "use client" 才能在浏览器里用 useActionState / useState / useEffect
 
-import { useActionState, useState, useEffect, useRef, memo } from "react";
+import { useActionState, useState, useEffect, useRef } from "react";
 import { deleteQuestion } from "@/actions/questions";
 import { Button } from "@/components/ui/button";
 
@@ -61,6 +61,5 @@ function DeleteButton({
   );
 }
 
-// memo：父组件（题库列表/详情页）重渲染时，只要 id / onDeleted 没变，本按钮就跳过重渲染。
-// 配合父级用 useCallback 稳定 onDeleted，翻页、淡出其他题、弹 toast 时整列不会跟着重算。
-export default memo(DeleteButton);
+// React Compiler 自动 memoize，无需手动包 memo
+export default DeleteButton;
