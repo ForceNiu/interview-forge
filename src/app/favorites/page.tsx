@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -51,11 +51,10 @@ export default function FavoritesPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // 切换收藏成功后：失效 favorites 前缀下的缓存（含各页），触发当前页重新拉取。
-  // 用 useCallback 稳定引用，传给 FavoriteButton（已 memo）——翻页等父级重渲染时，
-  // 收藏按钮不会因 onToggled 换引用而跟着重算。
-  const handleToggled = useCallback(() => {
+  // React Compiler 自动稳定回调引用，无需 useCallback
+  const handleToggled = () => {
     queryClient.invalidateQueries({ queryKey: ["favorites"] });
-  }, [queryClient]);
+  };
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8">

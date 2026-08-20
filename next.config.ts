@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // React Compiler：自动 memoize 组件与 hooks，替代手写 memo/useCallback/useMemo。
+  // Next.js 16 起为顶层配置（非 experimental），与现有手写优化共存，可渐进式清理。
+  reactCompiler: true,
   // 标准配置：让 webpack 不要把 Prisma 客户端打进 bundle，
   // 否则 SSR 运行时解析到空壳会报 "did not initialize yet"。
   serverExternalPackages: ['@prisma/client', '.prisma/client'],

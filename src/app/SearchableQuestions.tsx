@@ -2,7 +2,7 @@
 // 它告诉 Next.js：这个组件要在【浏览器】里运行（不是服务器）。
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import DeleteButton from "@/components/DeleteButton";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -33,10 +33,11 @@ type QuestionCardProps = {
   onDeleted: (q: QuestionWithTags) => void;
 };
 
-// ① 单张题目卡片：用 memo 包裹。
-// 父组件（题库列表）在每次打字/状态变化时都会重渲染，但卡片只在自身 props 变化时才重渲染——
-// 例如翻页淡出别的题、弹出 toast、切换标签过滤时，没变的卡片跳过重渲染，避免整列重算。
-const QuestionCard = memo(function QuestionCard({
+// ① 单张题目卡片。
+// 父组件（题库列表）在每次打字/状态变化时都会重渲染，React Compiler 自动 memoize，
+// 卡片只在自身 props 变化时才重渲染——
+// 例如翻页淡出别的题、弹出 toast、切换标签过滤时，没变的卡片跳过重渲染。
+function QuestionCard({
   q,
   search,
   serverResults,
@@ -45,9 +46,8 @@ const QuestionCard = memo(function QuestionCard({
 }: QuestionCardProps) {
   const searching = search.trim() !== "";
 
-  // 卡片内层把 onDeleted(q) 包成稳定回调：DeleteButton 是 memo 组件，
-  // 给它传稳定引用才能避免它本身跟着父（卡片）重渲染而反复重跑 effect。
-  const handleCardDeleted = useCallback(() => onDeleted(q), [onDeleted, q]);
+  // 卡片内层把 onDeleted(q) 包成回调，传给 DeleteButton
+  const handleCardDeleted = () => onDeleted(q);
 
   return (
     <li>
@@ -115,7 +115,7 @@ const QuestionCard = memo(function QuestionCard({
       </Card>
     </li>
   );
-});
+}
 
 // 组件通过 props 收到 questions（由 Server Component 查好后传进来）
 export default function SearchableQuestions({
@@ -136,7 +136,8 @@ export default function SearchableQuestions({
   const reqIdRef = useRef(0);
 
   // ① 真正的搜索请求：防抖词非空时打到 Server Action（后端连库模糊查 标题+正文+标签）
-  const runSearch = useCallback(async (q: string) => {
+  // React Compiler 自动稳定引用，useEffect 依赖不会因引用变化而重复触发
+  async function runSearch(q: string) {
     const id = ++reqIdRef.current;
     setLoading(true);
     setError(null);
@@ -152,7 +153,7 @@ export default function SearchableQuestions({
         setLoading(false);
       }
     }
-  }, []);
+  }
 
   useEffect(() => {
     const q = debouncedSearch.trim();
@@ -171,43 +172,39 @@ export default function SearchableQuestions({
   const [showToast, setShowToast] = useState(false);
 
   // ⑤ 删除成功回调：留快照 + 弹 toast + 400ms 后卸掉。
-  // 用 useCallback 稳定引用：传给各 QuestionCard 后，卡片 memo 才能在不相关状态变化时跳过重渲染。
-  const handleDeleted = useCallback(
-    (q: QuestionWithTags) => {
-      setFading((prev) => ({ ...prev, [q.id]: q }));
-      setShowToast(true);
-      setTimeout(() => {
-        setFading((prev) => {
-          const next = { ...prev };
-          delete next[q.id];
-          return next;
-        });
-      }, 400);
-      if (serverResults) {
-        runSearch(debouncedSearch.trim());
-      }
-    },
-    [serverResults, debouncedSearch, runSearch]
-  );
+  // React Compiler 自动稳定引用，无需 useCallback
+  function handleDeleted(q: QuestionWithTags) {
+    setFading((prev) => ({ ...prev, [q.id]: q }));
+    setShowToast(true);
+    setTimeout(() => {
+      setFading((prev) => {
+        const next = { ...prev };
+        delete next[q.id];
+        return next;
+      });
+    }, 400);
+    if (serverResults) {
+      runSearch(debouncedSearch.trim());
+    }
+  }
 
   // base：当前"真实存在"的题目集合（服务端结果 or 全量）。
   // 仅用于淡出判定：某题进入 fading 快照、但已不在 base 里，说明它确实被删了 → 保持淡出态。
   const base = serverResults ?? questions;
-  const baseIds = useMemo(() => new Set(base.map((q) => q.id)), [base]);
+  // React Compiler 自动 memoize，无需 useMemo
+  const baseIds = new Set(base.map((q) => q.id));
 
   // ⑤ 派生列表：服务端结果 or 全量 → 叠加标签过滤 → 再并入淡出快照。
-  // 用 useMemo 缓存，避免每次渲染都重建 Map（题库大时省掉 O(n) 重复计算）。
-  const all = useMemo(() => {
-    const baseTagged = tagFilter
-      ? base.filter((q) => q.tags.some((qt) => qt.tag.name === tagFilter))
-      : base;
-    const map = new Map<string, QuestionWithTags>();
-    baseTagged.forEach((q) => map.set(q.id, q));
-    Object.values(fading).forEach((q) => {
-      if (!map.has(q.id)) map.set(q.id, q);
-    });
-    return Array.from(map.values());
-  }, [base, tagFilter, fading]);
+  // React Compiler 自动 memoize，无需 useMemo
+  const baseTagged = tagFilter
+    ? base.filter((q) => q.tags.some((qt) => qt.tag.name === tagFilter))
+    : base;
+  const map = new Map<string, QuestionWithTags>();
+  baseTagged.forEach((q) => map.set(q.id, q));
+  Object.values(fading).forEach((q) => {
+    if (!map.has(q.id)) map.set(q.id, q);
+  });
+  const all = Array.from(map.values());
 
   // ⑥ 空状态分流：数据库本就空（且无搜索）vs 搜索无果，文案不同
   const dbEmpty = questions.length === 0;

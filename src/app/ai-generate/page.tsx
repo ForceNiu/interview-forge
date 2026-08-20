@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, memo } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { difficultyColor, difficultyLabel } from "@/lib/difficulty";
 import { ERROR_KIND_ICON, type ErrorKind } from "@/lib/ai/errorMessage";
@@ -67,11 +67,11 @@ const ERROR_PHASE_LABEL: Record<string, string> = {
 
 const PHASE_ORDER = ["analyzeResume", "routeCandidate", "planStrategy", "generateQuestions", "refine"];
 
-// ① 单张"题目审核"卡片：用 memo 包裹。
+// ① 单张"题目审核"卡片。
 // SSE（服务器推送）流式追加题目时，父组件每次收到事件都会重渲染；
-// 卡片只在自身 props（题目内容、选中态）变化时才重渲染——
-// 既存的卡片（q 引用不变、selected 布尔不变）跳过重算，只有新追加的卡片渲染出来。
-const QuestionReviewCard = memo(function QuestionReviewCard({
+// React Compiler 自动 memoize，已存在的卡片（q 引用不变、selected 布尔不变）跳过重算，
+// 只有新追加的卡片渲染出来。
+function QuestionReviewCard({
   q,
   index,
   selected,
@@ -121,7 +121,7 @@ const QuestionReviewCard = memo(function QuestionReviewCard({
       </Button>
     </Card>
   );
-});
+}
 
 // ─── 页面 ───
 
@@ -198,7 +198,8 @@ export default function AiGeneratePage() {
 
   // ── 生成 ──
 
-  const handleGenerate = useCallback(async () => {
+  // React Compiler 自动稳定回调引用，无需 useCallback
+  async function handleGenerate() {
     if (!resume.trim()) return;
     setIsGenerating(true);
     setError(null);
@@ -322,7 +323,7 @@ export default function AiGeneratePage() {
       setIsGenerating(false);
       abortRef.current = null;
     }
-  }, [resume, jd, apiKey]);
+  }
 
   // ── 取消生成（二次确认，避免误触立即断流） ──
 
@@ -337,9 +338,8 @@ export default function AiGeneratePage() {
 
   // ── 题目选择 ──
 
-  // 切换某题选中态：用 useCallback 稳定引用，传给每个 QuestionReviewCard（已 memo）。
-  // 勾选其中一题时，只有该题 selected 布尔变化 → 仅那一张卡片重渲染。
-  const toggleQuestion = useCallback((index: number) => {
+  // 切换某题选中态。React Compiler 自动稳定回调引用，无需 useCallback
+  function toggleQuestion(index: number) {
     setSelectedQuestions((prev) => {
       const next = new Set(prev);
       if (next.has(index)) {
@@ -349,7 +349,7 @@ export default function AiGeneratePage() {
       }
       return next;
     });
-  }, []);
+  }
 
   // ── 保存 ──
 
