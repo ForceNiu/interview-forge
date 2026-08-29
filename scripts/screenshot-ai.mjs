@@ -1,8 +1,10 @@
 // Interview Forge · AI 出题流程截图脚本
 // 浅色跑完整 + 深色跑完整 + 错误态，全部真实跑 DeepSeek
 // 真实跑生成的题通过 save-questions 写入数据库（用户已确认全部保留）
-// 用法：node scripts/screenshot-ai.mjs [phase]
-//   phase = light | dark | error | all（默认 all）
+// 用法：node scripts/screenshot-ai.mjs [phase] [阶段列表]
+//   phase = all | light | dark | error | partial | phases
+//   phases：局部重截指定阶段（双主题，一次流程出 light+dark）
+//     例：node scripts/screenshot-ai.mjs phases planStrategy,generateQuestions
 
 import { chromium } from 'playwright';
 import fs from 'fs';
@@ -90,6 +92,92 @@ const PHASE_LABELS = {
   generateQuestions: '生成题目',
   refine: '精炼优化',
 };
+
+// ── 阶段「可辨识视觉证据」——解决同帧重复问题 ──
+// 背景：SSE 顶层阶段只在节点完成时推 done（streamMode:"values"），而节点④一开始就会给每个域
+// 推 domain running。于是 planStrategy 打 ✅ 与 generateQuestions 转 ⏳ + 涌入域进度几乎同时发生，
+// 「生成题目仍是 ⬜」那一帧只存在几十毫秒，轮询 + 整页截图根本抓不住 → 两张图 MD5 完全相同。
+// 修法：不追求抓不到的那一帧，改为抓两个真实存在、且肉眼可分的状态：
+//   planStrategy      = 域进度刚涌入、尚无域完成（全是 ⏳ running）
+//   generateQuestions = 已有若干域完成（出现 ✅ · n 题）
+const ROW_SEL = '[class*="ml-7"] > div'; // 生成进度卡片里域列表容器的直接子行
+
+function rowStats(rows) {
+  const done = rows.filter((t) => /\d+\s*题/.test(t)).length;
+  const failed = rows.filter((t) => t.includes('生成失败')).length;
+  return { total: rows.length, done, failed };
+}
+
+const PHASE_EVIDENCE = {
+  planStrategy: {
+    desc: '域进度刚出现，尚无域完成（全 ⏳）',
+    mode: 'domainsRunning',
+    timeoutMs: 120000,
+  },
+  generateQuestions: {
+    desc: '已有域完成（出现 ✅ · n 题）',
+    mode: 'domainsDone',
+    timeoutMs: 420000,
+  },
+};
+
+// 等到目标阶段出现专属视觉证据（或流程已到终态）才返回。
+// minDone：generateQuestions 要求「完成域数」至少比 planStrategy 那帧多 2，
+// 保证两帧必然不同（否则并发跑完 10 个域时可能刚好是同一画面）。
+async function waitForEvidence(phaseKey, minDone = 0) {
+  const cfg = PHASE_EVIDENCE[phaseKey];
+  if (!cfg) return;
+  console.log(`    ↳ 等待 ${phaseKey} 的可辨识证据：${cfg.desc}`);
+  const t0 = Date.now();
+  while (Date.now() - t0 < cfg.timeoutMs) {
+    const st = await page.evaluate(
+      ({ sel, genLabel }) => {
+        const rows = Array.from(document.querySelectorAll(sel)).map((el) =>
+          (el.textContent || '').trim()
+        );
+        // 真正的终态 = 顶层「生成题目」阶段打 ✅（节点④全部跑完才推 done）。
+        // 注意：不能拿「题目审核区出现」当终态——题目是逐域累加渲染的，
+        // 第一个域一完成它就会出现，那时后面还有 9 个域在跑。
+        let genDone = false;
+        let fatal = false;
+        for (const span of document.querySelectorAll('span')) {
+          const t = (span.textContent || '').trim();
+          if (t !== genLabel) continue;
+          const icon = span.closest('div')?.querySelector('span')?.textContent || '';
+          genDone = icon.includes('✅');
+        }
+        fatal = !!Array.from(document.querySelectorAll('button')).find((b) =>
+          (b.textContent || '').includes('重新生成')
+        );
+        return { rows, genDone, fatal };
+      },
+      { sel: ROW_SEL, genLabel: PHASE_LABELS.generateQuestions }
+    );
+    if (st.genDone || st.fatal) {
+      console.log('    · 生成阶段已结束，停止等待');
+      return;
+    }
+    const s = rowStats(st.rows);
+    const ok =
+      cfg.mode === 'domainsRunning'
+        ? s.total >= 1 && s.done === 0
+        : s.done >= Math.max(3, minDone);
+    if (ok) {
+      console.log(`    ✓ 证据达成（域行 ${s.total} 行 · 完成 ${s.done} · 失败 ${s.failed}）`);
+      return;
+    }
+    await page.waitForTimeout(1000);
+  }
+  console.log(`    ⚠ 等待 ${phaseKey} 证据超时，按当前画面截`);
+}
+
+// 读取当前画面里「已完成的域数」（域行含「n 题」即完成）
+async function readDoneRows() {
+  const rows = await page.evaluate((sel) =>
+    Array.from(document.querySelectorAll(sel)).map((el) => (el.textContent || '').trim())
+  , ROW_SEL);
+  return rowStats(rows).done;
+}
 
 async function runFullFlow(theme, suffix) {
   console.log(`\n──── AI 出题 · 主题 ${theme} · ${suffix} ────`);
@@ -181,6 +269,8 @@ async function runFullFlow(theme, suffix) {
     for (const p of reached) {
       if (!captured.has(p)) {
         captured.add(p);
+        // 同上：等到该阶段有专属视觉证据再截，避免与上一阶段同帧（MD5 相同）
+        await waitForEvidence(p);
         await shot(`ai__phase-${p}__${theme}__${suffix}`);
         lastPhase = p;
       }
@@ -196,6 +286,106 @@ async function runFullFlow(theme, suffix) {
   }
 
   return { successReached, errorReached };
+}
+
+// 只重截指定阶段的双主题图（一次流程出 light + dark，省一轮真实 API 调用与一次入库）。
+// 用途：某几张阶段图出问题（同帧重复 / 画面不对）时局部重截，不动其它已确认干净的图。
+// 用法：node scripts/screenshot-ai.mjs phases planStrategy,generateQuestions
+async function runPhaseShots(phases) {
+  console.log(`\n──── 重截阶段图 · ${phases.join(', ')} · 双主题 ────`);
+  await visitAiPage();
+  await setTheme('light');
+  await inputKeyAndConnect();
+  await page.locator('textarea').first().fill(RESUME);
+  await page.locator('textarea').nth(1).fill(JD);
+  await page.waitForTimeout(500);
+  await page.click('button:has-text("开始分析出题")');
+
+  const captured = new Set();
+  let planDoneRows = 0; // 截 planStrategy 那帧时已完成的域数，用于给 generateQuestions 设下限
+  const startTime = Date.now();
+  const timeoutMs = 720000;
+
+  while (Date.now() - startTime < timeoutMs && captured.size < phases.length) {
+    const state = await page.evaluate((PHASE_LABELS) => {
+      const donePhases = [];
+      let activePhase = null;
+      for (const span of document.querySelectorAll('span')) {
+        const t = (span.textContent || '').trim();
+        const key = Object.keys(PHASE_LABELS).find((k) => PHASE_LABELS[k] === t);
+        if (!key) continue;
+        const flex = span.closest('div');
+        const icon = flex?.querySelector('span')?.textContent || '';
+        if (icon.includes('✅')) donePhases.push(key);
+        else if (icon.includes('⏳')) activePhase = key;
+      }
+      const fatalEl = Array.from(document.querySelectorAll('div')).find(
+        (el) =>
+          el.className.includes('border-destructive') && el.className.includes('bg-destructive')
+      );
+      const fatalText = fatalEl ? fatalEl.textContent || '' : '';
+      const hasError =
+        !!fatalEl &&
+        !!Array.from(document.querySelectorAll('button')).find((b) =>
+          (b.textContent || '').includes('重新生成')
+        ) &&
+        !/以下知识域生成失败/.test(fatalText);
+      // 终态判定同样用「生成题目 ✅」而非「题目审核区出现」（后者第一个域完成就会出现）
+      return {
+        donePhases,
+        activePhase,
+        genDone: donePhases.includes('generateQuestions'),
+        hasError,
+        errorDetail: fatalText,
+      };
+    }, PHASE_LABELS);
+
+    if (state.genDone) {
+      console.log('  · 生成阶段已结束，停止');
+      // 若还要求截 success，说明之前没截到；现在生成刚完成，补截双主题
+      if (phases.includes('success') && !captured.has('success')) {
+        await setTheme('light');
+        await shot(`ai__success__light__real`);
+        await setTheme('dark');
+        await shot(`ai__success__dark__real`);
+        await setTheme('light');
+        captured.add('success');
+        console.log('    ✓ success 已截 light + dark（生成完成态）');
+      }
+      break;
+    }
+    if (state.hasError) {
+      console.log(`  ✗ 错误态触发：${state.errorDetail?.slice(0, 200)}`);
+      break;
+    }
+
+    const reached = state.activePhase
+      ? [...new Set([...state.donePhases, state.activePhase])]
+      : state.donePhases;
+
+    for (const p of phases) {
+      if (captured.has(p) || !reached.includes(p)) continue;
+      // generateQuestions 的完成域数必须比 planStrategy 那帧多 2，保证两帧必然不同
+      const minDone = p === 'generateQuestions' ? planDoneRows + 2 : 0;
+      // 等到该阶段有专属视觉证据，避免与上一阶段同帧
+      await waitForEvidence(p, minDone);
+      // 双主题：截完 light 切 dark 再截，最后切回 light 让流程不受影响
+      await setTheme('light');
+      await shot(`ai__phase-${p}__light__real`);
+      await setTheme('dark');
+      await shot(`ai__phase-${p}__dark__real`);
+      await setTheme('light');
+      if (p === 'planStrategy') planDoneRows = await readDoneRows();
+      captured.add(p);
+      console.log(`    ✓ ${p} 已截 light + dark（planDoneRows=${planDoneRows}）`);
+    }
+
+    await page.waitForTimeout(800);
+  }
+
+  const missed = phases.filter((p) => !captured.has(p));
+  if (missed.length) console.log(`  ⚠ 未截到：[${missed.join(',')}]`);
+  return [...captured];
 }
 
 async function runErrorFlow(theme) {
@@ -351,6 +541,13 @@ try {
     await runErrorFlow('dark');
     await runPartialFlow('light');
     await runPartialFlow('dark');
+  }
+  if (phase === 'phases') {
+    const list = (process.argv[3] || 'planStrategy,generateQuestions')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    await runPhaseShots(list);
   }
   if (phase === 'partial') {
     await runPartialFlow('light');
