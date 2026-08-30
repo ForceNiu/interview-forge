@@ -22,6 +22,21 @@
 
 ---
 
+## 在线演示（online demo）
+
+🔗 <https://interview-forge-coral.vercel.app>
+
+> 🔒 **打开会先看到解锁页 —— 这是有意为之，不是站点故障。**
+>
+> 线上实例连的是作者自己的云端数据库。若对匿名访客全站开放，任何人都能随意增删改题库数据，演示内容很快就会被弄乱。因此生产环境启用了访问密码门（`src/proxy.ts`）：仅当 `NODE_ENV=production` 且设置了 `SITE_PASSWORD` 时拦截全站请求，开发环境自动放行。
+>
+> 想看完整交互，三种方式：
+> 1. **本地运行**（推荐，功能完整且无限制）——按下方 [三、快速开始](#三快速开始) 跑起来，密码门在本地不生效；
+> 2. **向作者索取临时密码**；
+> 3. **看截图**——[界面截图精选](#界面截图精选) 覆盖主要页面的明暗两套主题，全部 76 张见 [`docs/screenshots/`](docs/screenshots/README.md)。
+
+---
+
 ## 一、这是什么
 
 面试准备最怕两件事：题库散落在各处找不到，以及不知道面试官会针对自己的简历问什么。
@@ -389,9 +404,9 @@ npm test
 1. **lint**（`eslint`）——零 error 才放行。拦截 `any` 滥用、未使用变量、CJS `require`、effect 里 setState 等问题；放在最前是因为它最便宜，风格不过就没必要跑后面三道
 2. **type-check**（`tsc --noEmit`）——零类型错误才放行
 3. **test**（`jest`）——全部用例通过才放行
-4. **build**（`next build`）——连 `DATABASE_URL` 预渲染，构建失败则部署中断
+4. **build**（`next build`）——完整构建全部路由，构建失败则部署中断
 
-> 说明：CI 的 `build` 步骤已开启，需仓库配置 `DATABASE_URL` 这个 GitHub Secret（独立 Neon 库连接串）——因为 provider 为 PostgreSQL，build 时需连库预渲染部分页面。若未配该 Secret，`build` job 会失败（属预期，不是代码问题）。部署侧（Vercel）同样会配 `DATABASE_URL` 在部署时 build 验证。
+> 说明：本仓库**并未配置** `DATABASE_URL` 这个 GitHub Secret，但实测四道闸门依然全绿（2026-08-30：lint 38s / type-check 36s / test 41s / build 55s）——单测全程 mock Prisma，不连真实库。也就是说 **fork（复刻）本仓库后不配任何 Secret 也能跑通 CI**。但**部署到 Vercel 时 `DATABASE_URL` 必须设**，否则线上页面读不到数据。
 
 ### 部署（deployment）—— Vercel
 
