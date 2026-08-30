@@ -1,6 +1,8 @@
-# Interview Forge（面试锻造）
+# Interview Forge（面试手记）
 
 **一个全栈面试题库管理平台——从题库 CRUD（增删改查）到 AI 智能出题，打通 Next.js + Prisma + PostgreSQL 全链路。**
+
+> **关于命名**：项目中文名 **面试手记**、英文名 **Interview Forge**，两者指同一个项目。界面与代码里的品牌名（导航栏、`layout.tsx` 的 title 与 OG（Open Graph，社交分享卡片）字段、Prisma schema 注释）统一为「面试手记 · Interview Forge」。
 
 ![CI](https://github.com/ForceNiu/interview-forge/actions/workflows/ci.yml/badge.svg?branch=main)
 
@@ -24,7 +26,7 @@
 
 面试准备最怕两件事：题库散落在各处找不到，以及不知道面试官会针对自己的简历问什么。
 
-Interview Forge（面试锻造）解决这两个问题：
+Interview Forge（面试手记）解决这两个问题：
 
 - **统一收纳**：把你收集的面试题、自己踩过的坑、AI（人工智能）生成的针对性题目，全部存进一个可搜索、可打标签、可收藏的题库里。
 - **AI 智能出题**：输入你的简历和目标岗位 JD（Job Description，职位描述），系统自动分析你的技术栈和盲区，生成针对你个人的面试题目——不是泛泛的"请说说闭包"，而是结合你简历里的具体技术点，追问它的设计考量、底层原理与真实踩坑场景。
@@ -57,13 +59,27 @@ Interview Forge（面试锻造）解决这两个问题：
 | `/ai-generate`          | AI 出题：输入简历 + JD，SSE 流式消费 5 节点工作流进度，实时展示生成题目并一键保存                          |
 | `/unlock`               | 密码门：仅**生产环境**且设置 `SITE_PASSWORD` 时才启用（开发环境全开放），输入密码后放开全站访问                          |
 
+### 界面截图精选
+
+以下均为当前代码下的**真实运行截图**（无 mock、无占位），浅色 / 深色双主题对照：
+
+| 场景 | 浅色（light） | 深色（dark） |
+| --- | --- | --- |
+| 首页题库列表（SSR 渲染） | ![首页-浅色](docs/screenshots/readme/home__list__light.png) | ![首页-深色](docs/screenshots/readme/home__list__dark.png) |
+| 题目详情（Markdown 答案渲染） | ![详情-浅色](docs/screenshots/readme/detail__view__light.png) | ![详情-深色](docs/screenshots/readme/detail__view__dark.png) |
+| AI 出题进行中（节点④ 生成题目） | ![AI进行中-浅色](docs/screenshots/readme/ai__phase-generateQuestions__light__real.png) | ![AI进行中-深色](docs/screenshots/readme/ai__phase-generateQuestions__dark__real.png) |
+| AI 出题完成（可一键保存入库） | ![AI完成-浅色](docs/screenshots/readme/ai__success__light__real.png) | ![AI完成-深色](docs/screenshots/readme/ai__success__dark__real.png) |
+
+> 📸 **完整截图画廊（76 张）**：[docs/screenshots/README.md](docs/screenshots/README.md) —— 按首页 / 新增 / 详情 / 编辑 / 收藏 / 标签 / AI 出题 / 边界状态分组，逐场景浅色 + 深色对照。
+> 逐屏图文操作手册见 [docs/spec/产品说明.md](docs/spec/产品说明.md)。
+
 ---
 
 ## 三、快速开始
 
 ### 前置要求
 
-- Node.js 18+
+- Node.js **>= 20.9.0**（Next.js 16 的最低要求；推荐 22 LTS，长期支持版）
 - PostgreSQL（关系型数据库，推荐 [Neon](https://neon.tech) 免费套餐）
 - DeepSeek API Key（DeepSeek 大模型密钥，[获取地址](https://platform.deepseek.com/api_keys)），可选——不用 AI 出题功能的话可以不填
 
@@ -126,75 +142,93 @@ node scripts/seed.cjs
 ## 五、项目结构
 
 ```
-src/
-├── app/                      # Next.js App Router（应用路由）页面与路由
-│   ├── page.tsx              # 首页（Server Component，服务端组件，SSR 查库渲染）
-│   ├── layout.tsx            # 根布局（QueryProvider 全局查询管理器 + 防闪白脚本）
-│   ├── SearchableQuestions.tsx  # 搜索 + 题目列表（Client Component，客户端组件）
-│   ├── questions/
-│   │   ├── new/page.tsx      # 新增题目页
-│   │   └── [id]/
-│   │       ├── page.tsx      # 题目详情页（Markdown 渲染）
-│   │       └── edit/page.tsx # 编辑题目页
-│   ├── favorites/page.tsx    # 收藏页（TanStack Query）
-│   ├── tags/page.tsx         # 标签管理页
-│   ├── ai-generate/page.tsx  # AI 出题页（SSE 流式消费）
-│   ├── unlock/page.tsx       # 密码门页（SITE_PASSWORD 启用时）
-│   └── api/
-│       ├── ai/
-│       │   ├── generate/route.ts    # AI 出题主接口（SSE 流式）
-│       │   ├── save-questions/route.ts  # 保存 AI 生成的题目
-│       │   ├── setup-key/route.ts   # 加密存储用户 API Key
-│       │   ├── test/route.ts        # API Key 连通性测试
-│       │   ├── graph-order/route.ts # 工作流节点顺序演示（教学用）
-│       │   └── workflow-test/route.ts # 工作流全链路连通性测试
-│       └── questions/
-│           ├── route.ts             # 返回全部题目 + 可选 favorite 过滤
-│           └── [id]/favorite/route.ts  # 切换收藏状态
-├── actions/
-│   ├── questions.ts           # 题库 Server Actions（CRUD + 搜索）
-│   ├── tags.ts               # 标签 Server Actions
-│   └── unlock.ts             # 密码门 Server Action
-├── components/
-│   ├── QuestionForm.tsx       # 新增/编辑共用表单
-│   ├── FavoriteButton.tsx     # 收藏按钮（乐观更新）
-│   ├── DeleteButton.tsx       # 删除按钮（二次确认 + 淡出动画）
-│   ├── QueryProvider.tsx      # TanStack Query 全局 Provider（管理器）
-│   ├── ThemeToggle.tsx        # 深色模式切换
-│   ├── NavBar.tsx             # 导航栏
-│   ├── MarkdownView.tsx       # Markdown 渲染（react-markdown + remark-gfm）
-│   └── ui/                    # 手搓 shadcn/ui 基础组件（button/card/input/...）
-├── lib/
-│   ├── prisma.ts              # Prisma 单例（singleton，globalThis 缓存防连接耗尽）
-│   ├── validator.ts           # Zod schema（校验规则定义） + 语义校验函数
-│   ├── useDebounce.ts         # 防抖 hook（useDebounce）
-│   ├── crypto.ts              # AES-256-GCM 加解密
-│   └── ai/
-│       ├── workflow.ts        # LangGraph 5 节点工作流定义
-│       ├── client.ts          # DeepSeek LLM（大模型）客户端
-│       ├── logger.ts          # L1/L2 日志
-│       └── recordRun.ts       # L4 运行记录写库
-├── __tests__/                 # 组件 / 页面 / Server Actions / 路由测试
-│   ├── QuestionForm.test.tsx
-│   ├── QuestionList.test.tsx
-│   ├── questions.test.tsx
-│   ├── tags.test.tsx
-│   ├── proxy.test.tsx         # 密码门 proxy 分支
-│   ├── unlock.test.tsx        # 解锁 Server Action
-│   ├── favorite-route.test.tsx  # 收藏切换路由
-│   └── ai/workflow.test.tsx
-├── lib/
-│   ├── __tests__/             # 纯函数 / 工具类测试
-│   │   ├── crypto.test.tsx
-│   │   ├── search-ui.test.tsx
-│   │   └── validator.test.tsx
-│   ├── search-ui.tsx          # 搜索摘要 / 高亮纯函数
-│   └── ...
-prisma/
-├── schema.prisma              # 5 张表定义（数据模型）
-scripts/
-├── seed.cjs                   # 种子数据
-└── smoke.cjs                  # 冒烟测试（smoke test）
+.
+├── prisma/
+│   ├── schema.prisma          # 5 张表定义（User / Question / Tag / QuestionTag / GenerationRun）
+│   └── migrations/
+│       └── 0001_init/         # 初始迁移（部署用 prisma migrate deploy 应用）
+├── scripts/
+│   ├── seed.cjs               # 种子数据（15 道示例题 + 标签）
+│   ├── smoke.cjs              # 冒烟测试（smoke test）
+│   └── screenshot-ai.mjs      # Playwright 自动跑 AI 出题流程并分层截图
+└── src/
+    ├── proxy.ts               # 全站密码门（Next 16 起取代 middleware.ts，仅生产环境生效）
+    ├── app/                   # Next.js App Router（应用路由）页面与路由
+    │   ├── layout.tsx         # 根布局（QueryProvider 查询管理器 + 防闪白脚本）
+    │   ├── page.tsx           # 首页（Server Component，服务端组件，SSR 查库渲染）
+    │   ├── loading.tsx        # 全局 loading（加载中）骨架
+    │   ├── error.tsx          # 全局 error boundary（错误边界）
+    │   ├── not-found.tsx      # 404 页
+    │   ├── SearchableQuestions.tsx  # 搜索 + 题目列表（Client Component，客户端组件）
+    │   ├── questions/
+    │   │   ├── new/page.tsx   # 新增题目页
+    │   │   └── [id]/
+    │   │       ├── page.tsx       # 题目详情页（Markdown 渲染）
+    │   │       ├── edit/page.tsx  # 编辑题目页
+    │   │       └── DetailActions.tsx  # 详情页操作区（编辑 / 删除 / 收藏）
+    │   ├── favorites/page.tsx # 收藏页（TanStack Query）
+    │   ├── tags/
+    │   │   ├── page.tsx       # 标签管理页
+    │   │   ├── TagForm.tsx    # 标签新增 / 编辑表单
+    │   │   ├── TagList.tsx    # 标签列表
+    │   │   └── TagDeleteButton.tsx  # 标签删除（二次确认）
+    │   ├── ai-generate/page.tsx  # AI 出题页（SSE 流式消费）
+    │   ├── unlock/page.tsx    # 密码门页（SITE_PASSWORD 启用时）
+    │   └── api/
+    │       ├── ai/
+    │       │   ├── generate/route.ts    # AI 出题主接口（SSE 流式）
+    │       │   ├── save-questions/route.ts  # 保存 AI 生成的题目
+    │       │   ├── setup-key/route.ts   # 加密存储用户 API Key
+    │       │   ├── test/route.ts        # API Key 连通性测试
+    │       │   ├── graph-order/route.ts # 工作流节点顺序演示（教学用）
+    │       │   └── workflow-test/route.ts # 工作流全链路连通性测试
+    │       └── questions/
+    │           ├── route.ts             # 返回全部题目 + 可选 favorite 过滤
+    │           └── [id]/favorite/
+    │               ├── route.ts         # 切换收藏状态
+    │               └── __tests__/route.test.tsx
+    ├── actions/
+    │   ├── questions.ts       # 题库 Server Actions（CRUD + 搜索）
+    │   ├── tags.ts            # 标签 Server Actions
+    │   └── unlock.ts          # 密码门 Server Action
+    ├── components/
+    │   ├── QuestionForm.tsx   # 新增 / 编辑共用表单
+    │   ├── FavoriteButton.tsx # 收藏按钮（乐观更新）
+    │   ├── DeleteButton.tsx   # 删除按钮（二次确认 + 淡出动画）
+    │   ├── QueryProvider.tsx  # TanStack Query 全局 Provider（管理器）
+    │   ├── ThemeToggle.tsx    # 深色模式切换
+    │   ├── NavBar.tsx         # 导航栏
+    │   ├── MarkdownView.tsx   # Markdown 渲染（react-markdown + remark-gfm）
+    │   ├── Toast.tsx / GlobalToast.tsx  # 轻提示组件与全局挂载点
+    │   └── ui/                # 手搓 shadcn/ui 基础组件（button/card/input/select/...）
+    ├── lib/
+    │   ├── prisma.ts          # Prisma 单例（singleton，globalThis 缓存防连接耗尽）
+    │   ├── validator.ts       # Zod schema（校验规则定义） + 语义校验函数
+    │   ├── useDebounce.ts     # 防抖 hook（useDebounce）
+    │   ├── crypto.ts          # AES-256-GCM 加解密（用户 API Key）
+    │   ├── security.ts        # 路径 / 访问守卫判定
+    │   ├── color.ts           # 标签颜色解析
+    │   ├── difficulty.ts      # 难度枚举与配色
+    │   ├── search-ui.tsx      # 搜索摘要 / 高亮纯函数
+    │   ├── utils.ts           # cn() 类名合并等工具
+    │   ├── __tests__/         # 纯函数 / 工具类测试
+    │   │   ├── crypto.test.tsx
+    │   │   ├── search-ui.test.tsx
+    │   │   └── validator.test.tsx
+    │   └── ai/
+    │       ├── workflow.ts    # LangGraph 5 节点工作流定义
+    │       ├── client.ts      # DeepSeek LLM（大模型）客户端
+    │       ├── logger.ts      # L1/L2 分级日志
+    │       ├── recordRun.ts   # L4 运行记录写库（GenerationRun）
+    │       ├── errorMessage.ts  # LLM 错误归类与用户可读文案
+    │       └── __tests__/workflow.test.tsx
+    └── __tests__/             # 组件 / 页面 / Server Actions 测试
+        ├── QuestionForm.test.tsx
+        ├── QuestionList.test.tsx
+        ├── questions.test.tsx
+        ├── tags.test.tsx
+        ├── proxy.test.tsx     # 密码门 proxy 分支
+        └── unlock.test.tsx    # 解锁 Server Action
 ```
 
 ---
@@ -339,19 +373,23 @@ GenerationRun（AI 出题运行记录，独立表）
 # 类型检查（type-check）
 npm run type-check
 
+# 代码检查（lint，ESLint + React Compiler 规则）
+npm run lint
+
 # 单元测试 + 组件测试
 npm test
 ```
 
 当前覆盖 11 个测试套件（约 50 条用例）：表单/列表组件、AI 工作流、搜索与标签下钻逻辑、标签/题目表单校验、安全路径（密码门 / API Key 加密）、收藏切换 API。所有用例均不依赖真实数据库（prisma 全程 mock），可在任意环境稳定跑。
 
-### CI（持续集成）三道闸门
+### CI（持续集成）四道闸门
 
 每次 push（推送）到 `main` 分支，GitHub Actions（GitHub 自动化流水线）自动执行：
 
-1. **type-check**（`tsc --noEmit`）——零类型错误才放行
-2. **test**（`jest`）——全部用例通过才放行
-3. **build**（`next build`）——连 `DATABASE_URL` 预渲染，构建失败则部署中断
+1. **lint**（`eslint`）——零 error 才放行。拦截 `any` 滥用、未使用变量、CJS `require`、effect 里 setState 等问题；放在最前是因为它最便宜，风格不过就没必要跑后面三道
+2. **type-check**（`tsc --noEmit`）——零类型错误才放行
+3. **test**（`jest`）——全部用例通过才放行
+4. **build**（`next build`）——连 `DATABASE_URL` 预渲染，构建失败则部署中断
 
 > 说明：CI 的 `build` 步骤已开启，需仓库配置 `DATABASE_URL` 这个 GitHub Secret（独立 Neon 库连接串）——因为 provider 为 PostgreSQL，build 时需连库预渲染部分页面。若未配该 Secret，`build` job 会失败（属预期，不是代码问题）。部署侧（Vercel）同样会配 `DATABASE_URL` 在部署时 build 验证。
 
@@ -420,10 +458,12 @@ MIT
 
 | 文档 | 路径 |
 | --- | --- |
+| 界面截图画廊（76 张） | [docs/screenshots/README.md](docs/screenshots/README.md) |
 | 产品说明 | [docs/spec/产品说明.md](docs/spec/产品说明.md) |
 | 技术方案设计文档 | [docs/spec/技术方案设计文档.md](docs/spec/技术方案设计文档.md) |
 | 详细设计文档 | [docs/spec/详细设计文档.md](docs/spec/详细设计文档.md) |
 | 项目需求文档 | [docs/spec/项目需求文档.md](docs/spec/项目需求文档.md) |
 | AI 工作流-流程图总览 | [docs/ai-workflow/AI工作流-流程图总览.md](docs/ai-workflow/AI工作流-流程图总览.md) |
+| AI 出题提示词设计 | [docs/ai-workflow/AI出题提示词设计.md](docs/ai-workflow/AI出题提示词设计.md) |
 
-> 文档配图见 `docs/screenshots/`（界面截图）与 `docs/ai-workflow/assets/`（流程图 SVG）。
+> 文档配图见 `docs/screenshots/`（界面截图，README 引用的是 `docs/screenshots/readme/` 下的缩放副本）与 `docs/ai-workflow/assets/`（流程图 SVG）。
