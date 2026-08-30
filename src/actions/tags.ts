@@ -39,7 +39,7 @@ export async function createTag(
 // 删除标签：和 deleteQuestion 一样的结构 —— bind 预设 id，prisma.tag.delete + revalidatePath
 export async function deleteTag(
   id: string,
-  prevState: TagActionState
+  _prevState: TagActionState
 ): Promise<TagActionState> {
   try {
     await prisma.tag.delete({

@@ -2,7 +2,7 @@
 // 它告诉 Next.js：这个组件要在【浏览器】里运行（不是服务器）。
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import DeleteButton from "@/components/DeleteButton";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -136,8 +136,7 @@ export default function SearchableQuestions({
   const reqIdRef = useRef(0);
 
   // ① 真正的搜索请求：防抖词非空时打到 Server Action（后端连库模糊查 标题+正文+标签）
-  // React Compiler 自动稳定引用，useEffect 依赖不会因引用变化而重复触发
-  async function runSearch(q: string) {
+  const runSearch = useCallback(async (q: string) => {
     const id = ++reqIdRef.current;
     setLoading(true);
     setError(null);
@@ -153,12 +152,14 @@ export default function SearchableQuestions({
         setLoading(false);
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     const q = debouncedSearch.trim();
     if (q === "") {
       reqIdRef.current++;
+      // 搜索词清空 → 同步清空服务端结果，这是把外部输入状态同步到组件内部状态
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setServerResults(null);
       setLoading(false);
       setError(null);

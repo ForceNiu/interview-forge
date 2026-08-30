@@ -136,11 +136,6 @@ export function validateQuestionSemantics(
 // 不一致 → 抛错 → 节点①重试。不验证"深度判断对不对"，只验证"输出自不自洽"。
 // ============================================================
 
-/** 收集所有技能域 key（来自 skillCategoryMap 的键 + domainDepth 的键的并集） */
-function allDomains(analysis: { skillCategoryMap: Record<string, string[]>; domainDepth: Record<string, string> }): string[] {
-  return Array.from(new Set([...Object.keys(analysis.skillCategoryMap), ...Object.keys(analysis.domainDepth)]));
-}
-
 export function validateDomainDepthConsistency(
   analysis: { skillCategoryMap: Record<string, string[]>; domainDepth: Record<string, string>; highlights: string[]; blindSpots: string[]; projects: { name: string; tech: string[]; depth: string }[] },
   skillCategories: readonly string[]

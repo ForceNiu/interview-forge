@@ -13,6 +13,8 @@ export default function ThemeToggle() {
 
   // 内联脚本已在绘制前按 localStorage 设好 .dark，这里同步按钮文案状态
   useEffect(() => {
+    // 挂载时从 DOM 读取一次主题类，避免服务端渲染与客户端不一致
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(document.documentElement.classList.contains("dark"));
     setMounted(true);
   }, []);

@@ -1,7 +1,7 @@
 import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
 import { SystemMessage } from "@langchain/core/messages";
 import { createLLM } from "./client";
-import { makeRunId, appendLog, type LogLine } from "./logger";
+import { appendLog, type LogLine } from "./logger";
 import { generatedQuestionSchema, validateQuestionSemantics, resumeAnalysisSchema, strategySchema, validateDomainDepthConsistency, validateTotalCount } from "@/lib/validator";
 
 // 重试与超时参数（集中放一处，方便统一调）
@@ -171,7 +171,7 @@ function dedupeQuestions(questions: GeneratedQuestion[]): { deduped: GeneratedQu
   return { deduped, removed: questions.length - deduped.length };
 }
 
-const WorkflowState = Annotation.Root({
+export const WorkflowState = Annotation.Root({
   resume: Annotation<string>,
   jd: Annotation<string>,
   analysis: Annotation<ResumeAnalysis | null>,
@@ -190,10 +190,19 @@ const WorkflowState = Annotation.Root({
   routing: Annotation<RoutingDecision | null>, // ② 确定性分类结果，注入 ② 让策略偏重题型
 });
 
+// LangGraph 节点第二个参数：configurable 来自路由层透传
+interface NodeConfig {
+  configurable?: {
+    signal?: AbortSignal;
+    emit?: (data: Record<string, unknown>) => void;
+    forcePartial?: boolean;
+  };
+}
+
 // ============================================================
 // 节点①：分析简历（融入 resume-skill + job-description-skill + mock-interview 分类）
 // ============================================================
-async function analyzeResume(state: typeof WorkflowState.State, config?: any) {
+async function analyzeResume(state: typeof WorkflowState.State, config?: NodeConfig) {
   const llm = await createLLM();
   const runId = state.runId;
   const signal = config?.configurable?.signal as AbortSignal | undefined;
@@ -314,7 +323,7 @@ async function routeCandidate(state: typeof WorkflowState.State) {
 // ============================================================
 // 节点③：AI 自主规划出题策略（融入 mock-interview 的三层追问框架）
 // ============================================================
-async function planStrategy(state: typeof WorkflowState.State, config?: any) {
+async function planStrategy(state: typeof WorkflowState.State, config?: NodeConfig) {
   const llm = await createLLM();
   const analysis = state.analysis!;
   const runId = state.runId;
@@ -576,7 +585,7 @@ async function generateSupplement(
   return out;
 }
 
-async function generateQuestions(state: typeof WorkflowState.State, config?: any) {
+async function generateQuestions(state: typeof WorkflowState.State, config?: NodeConfig) {
   // 从 LangGraph 注入的 configurable 中拿到 SSE 推送函数，透传给每个域（用于域级细粒度进度）
   const emit = config?.configurable?.emit as ((data: Record<string, unknown>) => void) | undefined;
   // 取消信号同样来自 configurable（route 透传的 request.signal），传给每个域用于真正中断 LLM 调用

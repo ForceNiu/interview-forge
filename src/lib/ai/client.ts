@@ -154,7 +154,7 @@ function httpsViaProxy(
       timeout: 15000,
     });
 
-    connectReq.on("connect", (res: any, socket: net.Socket) => {
+    connectReq.on("connect", (res: http.IncomingMessage, socket: net.Socket) => {
       if (res.statusCode !== 200) {
         socket.destroy();
         clearTimeout(timer);

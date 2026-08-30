@@ -1,4 +1,4 @@
-import { buildWorkflow } from "@/lib/ai/workflow";
+import { buildWorkflow, WorkflowState } from "@/lib/ai/workflow";
 import { makeRunId } from "@/lib/ai/logger";
 import { recordGenerationRun } from "@/lib/ai/recordRun";
 import { toUserMessage } from "@/lib/ai/errorMessage";
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
         // 遍历流式结果
         let hadRefine = false;
-        let lastChunk: Record<string, any> | null = null;
+        let lastChunk: typeof WorkflowState.State | null = null;
         for await (const chunk of streamResult) {
           lastChunk = chunk;
           // 用 emitted 集合防止重复推送；用 generationDone 精确判定节点④是否真的跑完
