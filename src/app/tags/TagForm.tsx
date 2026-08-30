@@ -27,6 +27,7 @@ export default function TagForm() {
 
   // 创建成功 → 弹轻提示（不跳走，方便连续建多个标签）
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (state.ok) setShowToast(true);
   }, [state.ok]);
 

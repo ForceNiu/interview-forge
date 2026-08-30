@@ -11,8 +11,8 @@ const nextConfig: NextConfig = {
   // 允许通过 127.0.0.1 访问 dev 服务：否则 Next16 会拦截 HMR，导致浏览器 hydration 失败
   allowedDevOrigins: ['127.0.0.1'],
   // 显式把项目目录设成 turbopack 根目录
-  // 背景：上级目录 /Users/nzmin/WorkBuddy/AI 也有 package-lock.json,
-  // turbopack 推断时会选错的根,导致 dev 编译报 502 (找不到 src/app)
+  // 背景：若上级目录也存在 package-lock.json，turbopack 可能推断出错误的根，
+  // 导致 dev 编译报 502（找不到 src/app）。显式指定以消除环境差异。
   turbopack: {
     root: path.dirname(new URL(import.meta.url).pathname),
   },

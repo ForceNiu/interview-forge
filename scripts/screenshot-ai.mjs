@@ -10,10 +10,14 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
-const BASE = 'http://localhost:3200';
-const OUT_DIR = '/Users/nzmin/WorkBuddy/AI/interview-forge/docs/screenshots';
-const INPUT_PATH = '/Users/nzmin/WorkBuddy/AI/interview-forge/docs/screenshots/screenshot-input.md';
-const ENV_PATH = '/Users/nzmin/WorkBuddy/AI/interview-forge/.env';
+const BASE = process.env.SCREENSHOT_BASE_URL || 'http://localhost:3200';
+
+// 一律相对「本脚本所在目录」解析，避免把作者本机的绝对路径写进公开仓库
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const REPO_ROOT = path.resolve(__dirname, '..');
+const OUT_DIR = path.join(REPO_ROOT, 'docs', 'screenshots');
+const INPUT_PATH = path.join(OUT_DIR, 'screenshot-input.md');
+const ENV_PATH = path.join(REPO_ROOT, '.env');
 
 // ── 加载素材 ──
 const input = fs.readFileSync(INPUT_PATH, 'utf-8');
@@ -204,7 +208,6 @@ async function runFullFlow(theme, suffix) {
   const captured = new Set();
   const startTime = Date.now();
   const timeoutMs = 720000; // 12 分钟（真实简历全流程实测 ~5min，留足余量；勿低于 6min 否则流程未跑完就被断开）
-  let lastPhase = null;
   let successReached = false;
   let errorReached = false;
 
@@ -272,7 +275,6 @@ async function runFullFlow(theme, suffix) {
         // 同上：等到该阶段有专属视觉证据再截，避免与上一阶段同帧（MD5 相同）
         await waitForEvidence(p);
         await shot(`ai__phase-${p}__${theme}__${suffix}`);
-        lastPhase = p;
       }
     }
     console.log(`    poll ${(Date.now() - startTime) / 1000 | 0}s · 阶段 ${reached.length}/5 · done=[${state.donePhases.join(',') || '-'}] active=${state.activePhase || '-'} 成功=${state.hasQuestions} 错误=${state.hasError}`);

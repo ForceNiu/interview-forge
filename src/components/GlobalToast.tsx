@@ -19,6 +19,7 @@ function ToastReader() {
   useEffect(() => {
     const msg = params.get("toast"); // 例如 ?toast=题目已删除
     if (msg) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessage(msg); // ① 弹出来
       router.replace(pathname); // ② 把 ?toast= 从地址栏抹掉，防止刷新页面又弹一次
     }

@@ -1,7 +1,7 @@
 "use client";
 // ↑ Toast 要在浏览器里做"淡入淡出 + 自动消失"动画，必须标 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ToastProps = {
   message: string;
@@ -20,13 +20,22 @@ export default function Toast({
   // shown 控制"是否可见"。挂载时是 false（藏在上方），useEffect 里立刻变 true（淡入）
   const [shown, setShown] = useState(false);
 
+  // 用 ref 持有"最新的 onClose"。这样定时器 effect 的依赖里可以只留 duration：
+  // 若把 onClose 直接写进依赖，父组件重渲染（onClose 未 memo 时引用每次都变）会
+  // 清掉旧定时器重开新的 → Toast 一直不消失。用 ref 能既拿到最新回调、又不重启定时器，
+  // 也就不需要用 eslint-disable 关规则（React Compiler 会拒绝优化带 disable 的组件）。
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     // ① 下一帧把 shown 设 true → 触发 CSS 过渡（从上方淡入）
     const raf = requestAnimationFrame(() => setShown(true));
     // ② duration 后开始淡出
     const hideTimer = setTimeout(() => setShown(false), duration);
     // ③ 淡出动画(300ms)结束后再通知父组件卸掉我，避免"突然消失"的闪烁
-    const closeTimer = setTimeout(onClose, duration + 300);
+    const closeTimer = setTimeout(() => onCloseRef.current(), duration + 300);
 
     // ④ 清理：组件卸载或重渲染前清掉定时器，防止内存泄漏/重复触发
     return () => {
@@ -34,7 +43,7 @@ export default function Toast({
       clearTimeout(hideTimer);
       clearTimeout(closeTimer);
     };
-  }, []); // 空依赖：只在挂载时跑一次
+  }, [duration]);
 
   const isSuccess = type === "success";
   // 颜色用设计令牌（hsl 包裹，和配色 token 同一套），不写死 hex

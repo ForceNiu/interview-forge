@@ -133,7 +133,7 @@ export async function updateQuestion(
 // 签名和 updateQuestion 一样：(id, prevState) —— id 由 DeleteButton 用 .bind(null, id) 预设
 export async function deleteQuestion(
   id: string,
-  prevState: { error: string | null; ok?: boolean }
+  _prevState: { error: string | null; ok?: boolean }
 ): Promise<{ error: string | null; ok?: boolean }> {
   try {
     await prisma.question.delete({

@@ -8,9 +8,16 @@ import '@testing-library/jest-dom/jest-globals';
 // 渲染时会间接 import next/cache（revalidatePath），其依赖链需要这两个全局，
 // 生产/真实浏览器里自带，仅测试环境需补；否则报 "TextEncoder is not defined"。
 import { TextEncoder, TextDecoder } from 'util';
-if (typeof (global as any).TextEncoder === 'undefined') {
-  (global as any).TextEncoder = TextEncoder;
+
+interface TestGlobals {
+  TextEncoder?: typeof TextEncoder;
+  TextDecoder?: typeof TextDecoder;
 }
-if (typeof (global as any).TextDecoder === 'undefined') {
-  (global as any).TextDecoder = TextDecoder;
+const g = globalThis as unknown as TestGlobals;
+
+if (typeof g.TextEncoder === 'undefined') {
+  g.TextEncoder = TextEncoder;
+}
+if (typeof g.TextDecoder === 'undefined') {
+  g.TextDecoder = TextDecoder;
 }

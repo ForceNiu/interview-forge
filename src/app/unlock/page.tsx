@@ -39,6 +39,8 @@ export default function UnlockPage() {
   const [redirectFrom, setRedirectFrom] = useState("/");
   useEffect(() => {
     const f = new URLSearchParams(window.location.search).get("from");
+    // 挂载后从地址栏同步一次初始值，避免服务端渲染默认值与客户端不一致导致 hydration 警告
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (f) setRedirectFrom(f);
   }, []);
 
