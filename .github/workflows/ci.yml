@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  # lint（代码检查）闸门：拦截 any 滥用、未用变量、CJS require、effect 里 setState 等问题。
+  # 放在最前是因为它最便宜——风格不过就没必要跑后面三道。规则见 eslint.config.mjs。
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
   type-check:
     runs-on: ubuntu-latest
     steps:
