@@ -35,7 +35,7 @@ async function withTimeout<T>(
 
 // 限并发执行：并发数最初设为 3 路，是**保守默认值**（担心 DeepSeek 速率限制 / RPM 上限）。
 // 但 2026-08-13 多配置实测（5 轮 × 9 域、间隔 2–3 分钟、共 225 次调用）表明：
-// 全程**零 429**，且 limit=5 为实测最优（≈10.8s、相对串行约 3.8x 提速；limit=8 仍≈10s 但边际收益递减）。
+// 全程**零 429**，且 limit=5 为实测最优（≈11s、相对串行约 3.6x 提速；limit=8 仍≈10s 但边际收益递减）。
 // 故将生产值定为 5 路——既吃满提速、又留安全余量（实测 10 路仍零 429，但 5 路已近收益天花板、更稳）。
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -625,7 +625,7 @@ async function generateQuestions(state: typeof WorkflowState.State, config?: Nod
     ? `（精炼优化提示：上一版该题未通过质量校验。请重点改进——确保题目为开放式问法（含为什么/如何/说说等）、与候选人技术栈相关、内容充实（30字以上）、带知识域标签。）`
     : "";
 
-  // 限并发出题：各知识域互相独立，经实测 DeepSeek 在 5 路下零 429 且提速最优（≈3.8x）。
+  // 限并发出题：各知识域互相独立，经实测 DeepSeek 在 5 路下零 429 且提速最优（≈3.6x）。
   // 故采用 5 路并发（mapWithConcurrency）：吃满扇出提速、又留安全余量（实测 10 路仍零 429）。
   // 每个域在 generateForDomain 内部各自写 localLogs，这里按 domainsToProcess 固定顺序逐个合并，避免竞态。
   // 同时把 emit + index/total 透传给每个域，让前端能看到「第 i/N 个域」的细粒度进度。
