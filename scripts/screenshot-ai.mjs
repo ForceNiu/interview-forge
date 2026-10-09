@@ -38,8 +38,8 @@ if (!DEEPSEEK_API_KEY) {
 console.log(`✓ DeepSeek API Key: ${DEEPSEEK_API_KEY.slice(0, 6)}... 已加载`);
 
 // ── 启动浏览器 ──
-// 必须禁用代理：本机环境残留 HTTPS_PROXY=127.0.0.1:65487（已死的隧道），Chromium 默认继承该 env
-// 把 localhost:3200 的 SSE 长连接（~5min）也路由进死代理 → 流被掐断、浏览器端 reader 抛错 →
+// 必须禁用代理：若开发机上残留代理环境变量（HTTP(S)_PROXY 等），Chromium 会自动继承，
+// 把到 localhost 的 SSE 长连接也路由进该代理 → 流被掐断、浏览器端 reader 抛错 →
 // 页面显示「生成失败」致命横幅（Node 直连 client 则正常）。--no-proxy-server 让 Chromium 完全忽略
 // 系统/ENV 代理，直连 localhost，是比 `proxy:{server:'direct://'}` 更稳的写法（后者该 Playwright 版本不认）。
 const browser = await chromium.launch({
