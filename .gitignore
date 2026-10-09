@@ -38,3 +38,5 @@ next-env.d.ts
 
 # project-local memory（非源码，绝不提交）
 /.workbuddy/
+
+.claude
