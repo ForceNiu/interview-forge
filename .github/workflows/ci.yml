@@ -1,10 +1,14 @@
+# 为什么 branches 用 ['**'] 而不是 [main]：
+# 之前只在 main 分支触发 CI，其他分支 push/PR 不跑，导致 PR 页面上的绿勾
+# 是上次在 main 上跑完的残留状态（"假绿"）。改成所有分支都触发后，每个分支的
+# push 和 PR 都会真正重跑一遍 CI，绿勾反映的是当前提交的真实结果。
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
 
 jobs:
   # lint（代码检查）闸门：拦截 any 滥用、未用变量、CJS require、effect 里 setState 等问题。
