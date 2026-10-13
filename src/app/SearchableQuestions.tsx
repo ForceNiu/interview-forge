@@ -4,6 +4,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+// ① URL 读写搜索词：useSearchParams 读 ?q=，usePathname 拼路径（写历史见下方 effect）
+import { usePathname, useSearchParams } from "next/navigation";
 import DeleteButton from "@/components/DeleteButton";
 import FavoriteButton from "@/components/FavoriteButton";
 import { Input } from "@/components/ui/input";
@@ -126,7 +128,14 @@ export default function SearchableQuestions({
   // ① 从 URL ?tag=xxx 传入的当前标签过滤（标签 chip 点击下钻时带上的）
   activeTag?: string;
 }) {
-  const [search, setSearch] = useState("");
+  // 从 URL 读写搜索词：useSearchParams 读 ?q=，usePathname 拼路径；
+  // 写历史用 window.history.pushState（见下方 effect），只改 URL 不触发 Next 重新查库。
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 初始值来自 ?q=：刷新后搜索词不丢，首帧就带出防抖词，自动触发下方搜索。
+  // 测试环境 searchParams 为 null，用可选链退回空串。
+  const [search, setSearch] = useState(() => searchParams?.get("q") ?? "");
   const debouncedSearch = useDebounce(search, 300);
   const [serverResults, setServerResults] = useState<QuestionWithTags[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -167,6 +176,34 @@ export default function SearchableQuestions({
     }
     runSearch(q);
   }, [debouncedSearch, runSearch]);
+
+  // 防抖词稳定后才写 URL：只在「真正触发搜索」的词变化时 push 一条历史，
+  // 而不是每敲一个字就写，避免历史记录被击键刷爆，也保证前进/后退走的是已搜索过的词。
+  // 只改 q 参数、保留其它参数（如 ?tag=），清空时删掉 q 而不是留 ?q=。
+  useEffect(() => {
+    // 测试环境（jsdom）没有 App Router 上下文，usePathname 为 null，跳过 URL 写入
+    if (!pathname) return;
+    const term = debouncedSearch.trim();
+    const params = new URLSearchParams(window.location.search);
+    if ((params.get("q") ?? "") === term) return;
+    if (term) {
+      params.set("q", term);
+    } else {
+      params.delete("q");
+    }
+    const qs = params.toString();
+    window.history.pushState({}, "", `${pathname}${qs ? `?${qs}` : ""}`);
+  }, [debouncedSearch, pathname]);
+
+  // 浏览器前进/后退：URL 变了就把 q 灌回输入框，防抖后自动重新搜索。
+  // 只监听 popstate（前进/后退触发），pushState 不触发它，所以正常打字不会被回灌打断。
+  useEffect(() => {
+    const onPopState = () => {
+      setSearch(new URLSearchParams(window.location.search).get("q") ?? "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // ⑤ 正在淡出的题目快照：删除成功后先留着画图，动画结束再卸掉
   const [fading, setFading] = useState<Record<string, QuestionWithTags>>({});
